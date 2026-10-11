@@ -1,0 +1,6 @@
+huggingface-hub==1.33.0
+numpy==2.5.3
+safetensors==0.8.0
+torch==2.14.0
+transformer-lens==3.8.1
+transformers==5.17.0

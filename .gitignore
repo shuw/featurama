@@ -1,0 +1,9 @@
+node_modules/
+dist/
+shots/
+public/model/
+fixtures/fp16/
+fixtures/fp32/
+tools/reference/.venv/
+__pycache__/
+.DS_Store

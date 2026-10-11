@@ -1,0 +1,30 @@
+import { chromium } from "playwright-core";
+// Screenshots of the exhibit for review: bun run dev, then node scripts/look.mjs [dir].
+import { mkdirSync } from "node:fs";
+const out = process.argv[2] ?? "shots";
+mkdirSync(out, { recursive: true });
+const browser = await chromium.launch({ channel: "chrome", args: ["--enable-unsafe-webgpu", "--enable-gpu", "--use-angle=metal"] });
+const page = await browser.newPage({ viewport: { width: 1360, height: 980 } });
+const errors = [];
+page.on("pageerror", (e) => errors.push(e.message));
+page.on("console", (m) => m.type() === "error" && !m.text().includes("404") && errors.push(m.text()));
+await page.goto("http://localhost:5190/");
+await page.waitForSelector(".beat-predict .chips", { timeout: 120000 });
+await page.waitForTimeout(400);
+await page.screenshot({ path: `${out}/1-predict.png` });
+await page.getByRole("button", { name: "7", exact: true }).click();
+await page.getByRole("button", { name: "Run it" }).click();
+await page.waitForSelector(".beat-explain", { timeout: 30000 });
+await page.waitForTimeout(300);
+await page.screenshot({ path: `${out}/2-revealed.png`, fullPage: true });
+{ const cells = page.locator(".signal svg rect.cell"); const b = await cells.nth(9).boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); }
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${out}/3-hover.png` });
+await page.fill(".prompt input", "Michael Jordan plays the sport of");
+await page.waitForTimeout(800);
+await page.screenshot({ path: `${out}/4-jordan.png`, fullPage: true });
+await page.emulateMedia({ colorScheme: "dark" });
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${out}/5-dark.png`, fullPage: true });
+console.log(JSON.stringify({ errors, verdict: await page.locator(".beat").nth(0).textContent() }, null, 1));
+await browser.close();
