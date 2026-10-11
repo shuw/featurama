@@ -25,7 +25,7 @@ for (const path of ["src", "tests", "index.html"]) watch(join(root, path), { rec
 function staticFile(path: string) {
   const clean = normalize(path).replace(/^(\.\.[/\\])+/, "");
   if (clean.startsWith("/fixtures/")) return Bun.file(join(root, clean));
-  if (clean.startsWith("/model/") || clean.startsWith("/features/") || clean === "/head-examples.json") return Bun.file(join(root, "public", clean));
+  if (["/model/", "/features/", "/neurons/", "/zoom-data/"].some((p) => clean.startsWith(p)) || clean === "/head-examples.json" || clean === "/og.png") return Bun.file(join(root, "public", clean));
   return null;
 }
 

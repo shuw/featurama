@@ -67,10 +67,10 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) lid: vec
 }`;
 
 // out[t, o] = x[t, :] . W[:, o] + bias[o], then optionally GELU, then
-// optionally plus a residual. W is [n, m] (Hugging Face Conv1D layout). Each
+// optionally scaled (unplugging an MLP), then optionally plus a residual. W is [n, m] (Hugging Face Conv1D layout). Each
 // thread computes two adjacent outputs (one packed u32 of W) for 8 tokens.
 export const LINEAR = /* wgsl */ `
-struct P { T: u32, n: u32, m: u32, flags: u32, resOff: u32, outOff: u32, xOff: u32 }
+struct P { T: u32, n: u32, m: u32, flags: u32, resOff: u32, outOff: u32, xOff: u32, scale: f32 }
 @group(0) @binding(0) var<uniform> p: P;
 @group(0) @binding(1) var<storage, read> x: array<f32>;
 @group(0) @binding(2) var<storage, read> W: array<u32>;
@@ -114,6 +114,7 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) lid: vec
     var y = acc[k] + b;
     if ((p.flags & 1u) != 0u) { y = gelu(y); }
     if ((p.flags & 4u) != 0u) { y = max(y, vec2f(0.0)); }
+    y *= p.scale;
     let j = t * p.m + o;
     if ((p.flags & 2u) != 0u) { y += vec2f(res[p.resOff + j], res[p.resOff + j + 1u]); }
     out[p.outOff + j] = y.x;
@@ -123,7 +124,7 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) lid: vec
 
 // Causal attention pattern for one (query position, head) per workgroup.
 export const SCORES = /* wgsl */ `
-struct P { T: u32, d: u32, dh: u32, patOff: u32 }
+struct P { T: u32, d: u32, dh: u32, patOff: u32, qkvOff: u32 }
 @group(0) @binding(0) var<uniform> p: P;
 @group(0) @binding(1) var<storage, read> qkv: array<f32>;
 @group(0) @binding(2) var<storage, read_write> pattern: array<f32>;
@@ -134,12 +135,12 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) lid: vec
   let i = wg.x;
   let h = wg.y;
   let row = p.patOff + (h * p.T + i) * p.T;
-  let q = i * 3u * p.d + h * p.dh;
+  let q = p.qkvOff + i * 3u * p.d + h * p.dh;
   let scale = inverseSqrt(f32(p.dh));
   var mx = -3.0e38;
   for (var j = l; j < p.T; j += 64u) {
     if (j <= i) {
-      let k = j * 3u * p.d + p.d + h * p.dh;
+      let k = p.qkvOff + j * 3u * p.d + p.d + h * p.dh;
       var s = 0.0;
       for (var c = 0u; c < p.dh; c++) { s += qkv[q + c] * qkv[k + c]; }
       s *= scale;
@@ -179,7 +180,7 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) lid: vec
 // kept for every layer (TransformerLens's hook_z).
 // headScale is how ablation reaches a single head.
 export const MIX = /* wgsl */ `
-struct P { T: u32, d: u32, dh: u32, patOff: u32, scaleOff: u32, zOff: u32 }
+struct P { T: u32, d: u32, dh: u32, patOff: u32, scaleOff: u32, zOff: u32, qkvOff: u32 }
 @group(0) @binding(0) var<uniform> p: P;
 @group(0) @binding(1) var<storage, read> qkv: array<f32>;
 @group(0) @binding(2) var<storage, read> pattern: array<f32>;
@@ -193,7 +194,7 @@ fn main(@builtin(global_invocation_id) g: vec3u) {
   let h = c / p.dh;
   let row = p.patOff + (h * p.T + i) * p.T;
   var s = 0.0;
-  for (var j = 0u; j <= i; j++) { s += pattern[row + j] * qkv[j * 3u * p.d + 2u * p.d + c]; }
+  for (var j = 0u; j <= i; j++) { s += pattern[row + j] * qkv[p.qkvOff + j * 3u * p.d + 2u * p.d + c]; }
   z[p.zOff + g.x] = s * headScale[p.scaleOff + h];
 }`;
 

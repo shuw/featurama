@@ -62,6 +62,8 @@ def record(model, tokens):
         mid = torch.stack([cache[f"blocks.{i}.hook_resid_mid"][0] for i in range(n)])
         pattern = torch.stack([cache[f"blocks.{i}.attn.hook_pattern"][0] for i in range(n)])
         z = torch.stack([cache[f"blocks.{i}.attn.hook_z"][0] for i in range(n)])
+        qkv = torch.stack([torch.cat([cache[f"blocks.{i}.attn.hook_{x}"][0].flatten(1) for x in "qkv"], dim=-1) for i in range(n)])
+        neurons = torch.stack([cache[f"blocks.{i}.mlp.hook_post"][0] for i in range(n)])
         # Logit lens: the final LayerNorm recomputed on each layer's residual, then unembed.
         lens = model.unembed(model.ln_final(resid)).log_softmax(-1)
         lens_top = lens.topk(5, dim=-1)
@@ -72,6 +74,8 @@ def record(model, tokens):
         "resid_mid": arr(mid, "float32"),
         "pattern": arr(pattern, "float32"),
         "z": arr(z, "float32"),
+        "qkv": arr(qkv, "float32"),
+        "neurons": arr(neurons, "float32"),
         "logits_last": arr(logits[0, -1], "float32"),
         "top_ids": arr(final.indices, "int32"),
         "top_logprobs": arr(final.values, "float32"),
@@ -101,6 +105,16 @@ def interventions(model, prompts):
     cases.append({
         "name": "ablate name movers", "tokens": prompts["ioi"], "logits_last": arr(logits, "float32"),
         "interventions": [{"kind": "head", "layer": l, "head": h, "scale": 0} for l, hs in heads.items() for h in hs],
+    })
+
+    # Switch off two MLPs.
+    def zero_out(x, hook):
+        return torch.zeros_like(x)
+
+    logits = run(prompts["ioi"], [(f"blocks.{l}.hook_mlp_out", zero_out) for l in (3, 9)])
+    cases.append({
+        "name": "unplug two MLPs", "tokens": prompts["ioi"], "logits_last": arr(logits, "float32"),
+        "interventions": [{"kind": "mlp", "layer": l, "scale": 0} for l in (3, 9)],
     })
 
     # Add a fixed random direction to the residual stream at every position.

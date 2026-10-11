@@ -31,6 +31,7 @@ export function MlpCard({ layer, trace, weights, tokenizer, position, activity }
         )}
       </div>
       <div className="card-buttons">
+        <a className="secondary" href={href({ view: "zoom", part: "mlp", arg: String(layer) })}>Look inside its neurons →</a>
         <a className="secondary" href={href({ view: "layers" })}>See it in Layers →</a>
       </div>
     </div>

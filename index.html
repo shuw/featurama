@@ -5,12 +5,14 @@
 <script>{
   // The site's root, so files load from any page: strip a known page path, or
   // for an unknown one assume the site sits at / (or /<repo>/ on GitHub Pages).
-  const path = location.pathname;
-  const page = path.match(/^(.*?\/)(?:(?:attention|play)(?:\/[^/]*)?|layers|patching|features)\/?$/);
+  // Leading slashes are collapsed so "//other.site/..." can't become the base.
+  const path = location.pathname.replace(/^\/+/, "/");
+  const page = path.match(/^(.*?\/)(?:(?:attention|play)(?:\/[^/]*)?|zoom(?:\/[^/]*){0,2}|layers|patching|features)\/?$/);
   let root = page ? page[1] : path.replace(/[^/]*$/, "");
   if (!page && root !== "/") root = location.hostname.endsWith(".github.io") ? "/" + path.split("/")[1] + "/" : "/";
   const base = document.createElement("base");
-  base.href = root;
+  const url = new URL(root, location.origin);
+  base.href = url.origin === location.origin ? url.href : location.origin + "/";
   document.currentScript.after(base);
 }</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">

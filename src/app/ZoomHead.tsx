@@ -1,0 +1,183 @@
+// Inside one attention head: the question it asks, the labels it compares
+// with, the values it fetches and what it writes, down to single numbers.
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { GpuEngine } from "../engine/gpu/engine.ts";
+import type { Weights } from "../engine/model.ts";
+import type { Tokenizer } from "../engine/tokenizer.ts";
+import { predictions, show } from "./analysis.ts";
+import { DirectEffect } from "./DirectEffect.tsx";
+import { headOutput } from "./heads.ts";
+import { tokenize } from "./model.ts";
+import { pct, PromptBox } from "./PromptBox.tsx";
+import { href } from "./route.ts";
+import { Term } from "./Tip.tsx";
+import { useRun } from "./useRun.ts";
+import type { Writer } from "./useWriter.ts";
+import { headSources, insideHead, loadWiring, strongestSources, type Wiring } from "./zoom.ts";
+import { fmt, HeadStepper, Numbers, partGist, Section, TokenStrip } from "./zoom-ui.tsx";
+
+interface Props {
+  engine: GpuEngine;
+  tokenizer: Tokenizer;
+  weights: Weights;
+  id: string;
+  onHead: (id: string) => void;
+  prompt: string;
+  setPrompt: (text: string) => void;
+  shuffle: () => void;
+  writer: Writer;
+}
+
+export function ZoomHead({ engine, tokenizer, weights, id, onHead, prompt, setPrompt, shuffle, writer }: Props) {
+  const { n_layers: L, n_heads: H } = engine.config;
+  const [l, h] = id.split(".").map(Number);
+  const tokens = useMemo(() => tokenize(tokenizer, prompt), [tokenizer, prompt]);
+  const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { qkv: true, pattern: true, z: true, resid: true }, lens: { positions: [t.length - 1], topK: 5 } }), [engine]);
+  const { result: trace } = useRun(tokens, run);
+  const current = !!trace && trace.tokens === tokens;
+  const shown = trace?.tokens ?? tokens;
+  const [query, setQuery] = useState<number | null>(null);
+  const q = query === null || query >= shown.length ? shown.length - 1 : query;
+  const [picked, setPicked] = useState<number | null>(null);
+  const [hoverDim, setHoverDim] = useState<number | null>(null);
+
+  const inside = useMemo(() => (trace ? insideHead(trace, engine.config, l, h, q) : null), [trace, l, h, q, engine]);
+  const sources = useMemo(() => (trace ? headSources(trace, weights, l, h, q) : null), [trace, weights, l, h, q]);
+  const outVec = useMemo(() => (trace ? headOutput(trace, weights, l, h, q) : null), [trace, weights, l, h, q]);
+  const out = useCallback(() => outVec!, [outVec]);
+  const pieces = shown.map((t, i) => (i === 0 ? "⟨start⟩" : show(tokenizer.piece(t))));
+  const at = pieces[q];
+  const j = picked !== null && inside && picked < inside.scores.length ? picked : inside ? inside.pattern.indexOf(Math.max(...inside.pattern)) : 0;
+
+  const kMax = inside ? Math.max(...inside.keys.flatMap((k) => Array.from(k, Math.abs))) : 1;
+  const vMax = inside ? Math.max(...inside.values.flatMap((v) => Array.from(v, Math.abs))) : 1;
+  const qMax = inside ? Math.max(...Array.from(inside.q, Math.abs)) : 1;
+  const sMax = inside ? Math.max(...inside.scores.map(Math.abs)) : 1;
+
+  return (
+    <>
+      <PromptBox writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
+        next={current && trace?.lens ? predictions(trace, L, tokenizer) : null} stale={!current} />
+
+      <div className="zoom-controls">
+        <HeadStepper id={id} onChange={onHead} L={L} H={H} />
+        <p className="muted small zoom-gist"><strong>Head {id}</strong> · {partGist(id)}</p>
+      </div>
+      <div className="zoom-field">
+        <span className="card-label">Looking from</span>
+        <TokenStrip tokens={shown} tokenizer={tokenizer} value={q} onChange={(t) => { setQuery(t); setPicked(null); }} label="Choose the token the head looks from" />
+      </div>
+
+      {inside && sources && (
+        <div className="zoom-steps">
+          <Section n="1" title="Ask: a question and a label for each token">
+            <p>At “{at}”, the head turns the running summary into a question: 64 numbers called its <Term tip="Made by multiplying the token's 768 numbers by this head's query weights. Every head has its own.">query</Term>. Every token up to here holds up a label, 64 numbers called its <Term tip="Made by multiplying each token's 768 numbers by this head's key weights.">key</Term>. A label matches when its numbers line up with the question's.</p>
+            <div className="qk-grid">
+              <div className="qk-row qk-head">
+                <span className="qk-tok qk-query">{at}</span>
+                <Numbers values={inside.q} max={qMax} label={`The query at ${at}`} onHover={setHoverDim} mark={hoverDim} />
+                <span className="qk-num muted">score</span>
+                <span className="qk-num muted">share</span>
+              </div>
+              {inside.keys.map((k, t) => (
+                <button key={t} className={`qk-row${t === j ? " qk-on" : ""}`} onClick={() => setPicked(t)} aria-pressed={t === j}>
+                  <span className="qk-tok">{pieces[t]}</span>
+                  <Numbers values={k} max={kMax} label={`The key of ${pieces[t]}`} onHover={setHoverDim} mark={hoverDim} />
+                  <span className="qk-num" style={{ color: inside.scores[t] >= 0 ? undefined : "var(--muted)" }}>{fmt(inside.scores[t], 1)}</span>
+                  <span className="qk-share"><span className="qk-bar" style={{ width: `${inside.pattern[t] * 100}%` }} /><span className="qk-pct">{pct(inside.pattern[t])}</span></span>
+                </button>
+              ))}
+            </div>
+            <p className="muted small">The middle column is each label's match score. Scores are squashed into shares that add up to 100% (a softmax), so the best match takes most of the attention. Click a row to see its score worked out.{hoverDim !== null && <> Number {hoverDim + 1} of 64: query {fmt(inside.q[hoverDim])}.</>}</p>
+          </Section>
+
+          <OneScore q={inside.q} k={inside.keys[j]} score={inside.scores[j]} scores={inside.scores} share={inside.pattern[j]} from={at} to={pieces[j]} sMax={sMax} />
+
+          <Section n="2" title="Fetch: a blend of values">
+            <p>Each token also offers a <Term tip="64 numbers made from the token's running summary by this head's value weights: what the head would carry away if it looked there.">value</Term>. The head takes a blend, weighted by the shares from step 1.</p>
+            <div className="qk-grid">
+              {inside.values.map((v, t) => (
+                <div key={t} className={`qk-row${inside.pattern[t] >= 0.05 ? " qk-strong" : ""}`}>
+                  <span className="qk-tok">{pieces[t]}</span>
+                  <Numbers values={v} max={vMax} label={`The value of ${pieces[t]}`} />
+                  <span className="qk-num">× {pct(inside.pattern[t])}</span>
+                  <span className="qk-share" title="How much this token adds to what the head writes"><span className="qk-bar qk-bar-src" style={{ width: `${sources[t] * 100}%` }} /><span className="qk-pct">{pct(sources[t])}</span></span>
+                </div>
+              ))}
+              <div className="qk-row qk-sum">
+                <span className="qk-tok">blend</span>
+                <Numbers values={inside.z} max={vMax} label="The blend of values" />
+                <span className="qk-num" />
+                <span className="qk-num muted">of what it writes</span>
+              </div>
+            </div>
+            <p className="muted small">The last column is how much each token ends up adding to what the head writes, counting both its share of attention and the size of its value. A token can take most of the attention and still add little, like ⟨start⟩, whose value is tiny.</p>
+          </Section>
+
+          <Section n="3" title="Write: 64 numbers become 768">
+            <p>The head's output weights turn the blend into 768 numbers, which are added to the running summary at “{at}”.</p>
+            <Numbers values={outVec!} label="What the head writes" height={22} />
+            {trace && <DirectEffect trace={trace} weights={weights} tokenizer={tokenizer} vector={out} position={q} />}
+          </Section>
+
+          <WiringCard id={id} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// One match score, all the way down to multiplications.
+function OneScore({ q, k, score, scores, share, from, to, sMax }: { q: Float32Array; k: Float32Array; score: number; scores: number[]; share: number; from: string; to: string; sMax: number }) {
+  const products = useMemo(() => Float32Array.from(q, (x, i) => x * k[i]), [q, k]);
+  const sum = products.reduce((a, b) => a + b, 0);
+  const biggest = useMemo(() => Array.from(products, (v, i) => [v, i] as const).sort((a, b) => Math.abs(b[0]) - Math.abs(a[0])).slice(0, 4), [products]);
+  const pMax = Math.max(...Array.from(products, Math.abs));
+  return (
+    <Section n="1½" title={<>One score, down to single numbers: “{from}” asking “{to}”</>} className="one-score">
+      <div className="one-grid">
+        <span className="card-label">query</span><Numbers values={q} label="query" />
+        <span className="card-label">key</span><Numbers values={k} label="key" />
+        <span className="card-label">× each</span><Numbers values={products} max={pMax} label="Products" height={22} />
+      </div>
+      <p className="one-sum">
+        {biggest.map(([, i], n) => <span key={i}>{n ? " + " : ""}{fmt(q[i])} × {fmt(k[i])}</span>)} + … (64 in all) = <strong>{fmt(sum)}</strong>
+      </p>
+      <p className="one-sum">{fmt(sum)} ÷ 8 = <strong>{fmt(score)}</strong> <span className="muted">(8 is the square root of 64, to keep scores in a workable range)</span></p>
+      <p className="one-sum">share = e<sup>{fmt(score, 1)}</sup> ÷ (e<sup>score</sup> added up over all {scores.length} tokens) = <strong>{pct(share)}</strong></p>
+      <p className="muted small">That's all attention is: multiplying, adding and one squash. The largest products above are where this question and label agree most.{Math.abs(score) === sMax ? " This is the strongest match here." : ""}</p>
+    </Section>
+  );
+}
+
+// Which earlier heads this head's question, label and value can read from,
+// judged from the weights alone.
+function WiringCard({ id }: { id: string }) {
+  const [w, setW] = useState<Wiring | null>(null);
+  useEffect(() => {
+    loadWiring().then(setW).catch(() => {});
+  }, []);
+  if (!w || id.startsWith("0.")) return null;
+  const KINDS = [["Q", "question"], ["K", "labels"], ["V", "values"]] as const;
+  return (
+    <Section n="4" title="Wired to earlier heads">
+      <p>From the weights alone, these earlier heads write things this head is built to read. Researchers call this <Term tip={w.source}>composition</Term>. It's what the weights make possible, not what happens on your prompt.</p>
+      <div className="wire-cols">
+        {KINDS.map(([k, name]) => {
+          const kind = w.kinds[k];
+          const strong = strongestSources(w, k, id);
+          return (
+            <div key={k}>
+              <div className="card-label">Feeds its {name}</div>
+              {strong.length ? (
+                <ul className="wire-list">{strong.map(([src, s]) => <li key={src}><a href={href({ view: "zoom", part: "head", arg: src })}>{src}</a> <span className="muted small">{(s / kind.median).toFixed(1)}× typical</span></li>)}</ul>
+              ) : <p className="muted small">No standout.</p>}
+            </div>
+          );
+        })}
+      </div>
+      <a className="link-small" href={href({ view: "zoom", part: "weights" })}>See all the wiring →</a>
+    </Section>
+  );
+}

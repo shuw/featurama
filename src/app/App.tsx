@@ -14,6 +14,7 @@ import { GLOSSARY } from "./glossary.ts";
 import { Tip } from "./Tip.tsx";
 import { useWriter } from "./useWriter.ts";
 import { Wordmark } from "./Wordmark.tsx";
+import { Zoom } from "./Zoom.tsx";
 
 type Theme = "light" | "dark";
 
@@ -23,7 +24,8 @@ const TABS: { view: Route["view"]; label: string; key: string }[] = [
   { view: "layers", label: "Layers", key: "3" },
   { view: "patching", label: "Patching", key: "4" },
   { view: "features", label: "Features", key: "5" },
-  { view: "play", label: "Play", key: "6" },
+  { view: "zoom", label: "Zoom", key: "6" },
+  { view: "play", label: "Play", key: "7" },
 ];
 
 function readPref(key: string): string | null {
@@ -63,7 +65,7 @@ export function App() {
   }, [theme]);
   useEffect(() => writePref("featurama-guide", guide ? "on" : "off"), [guide]);
 
-  // ⌥1–⌥6 (Alt on Windows and Linux) switch pages, even while typing.
+  // ⌥1–⌥7 (Alt on Windows and Linux) switch pages, even while typing.
   // Holding ⌥ highlights the shortcuts on the tabs.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -152,6 +154,8 @@ export function App() {
             <Attention engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} jobs={model.jobs} head={route.head} guide={guide} {...shared} />
           ) : route.view === "features" ? (
             <Features engine={model.engine} tokenizer={model.tokenizer} {...shared} />
+          ) : route.view === "zoom" ? (
+            <Zoom engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} part={route.part} arg={route.arg} {...shared} />
           ) : route.view === "play" ? (
             route.level === "guess" ? <Game engine={model.engine} tokenizer={model.tokenizer} />
             : route.level ? <PuzzleLevel key={route.level} engine={model.engine} tokenizer={model.tokenizer} jobs={model.jobs} id={route.level} />
@@ -183,7 +187,7 @@ export function App() {
       </main>
       <footer className="foot">
         <span>GPT-2 small (OpenAI, 2019) running on your GPU with WebGPU. Nothing you type leaves your browser.</span>
-        <span>⌥1–⌥6 switch pages · Tab adds GPT-2's suggestion</span>
+        <span>⌥1–⌥7 switch pages · Tab adds GPT-2's suggestion</span>
         <a href="https://github.com/shuw/featurama">Source</a>
       </footer>
     </div>

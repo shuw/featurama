@@ -110,13 +110,17 @@ export class GpuEngine {
 
     dev.queue.writeBuffer(a.tokens, 0, new Uint32Array(tokens));
     const scale = new Float32Array(L * H).fill(1);
-    for (const iv of req.interventions ?? []) if (iv.kind === "head") scale[iv.layer * H + iv.head] = iv.scale;
+    const mlpScale = new Array<number>(L).fill(1);
+    for (const iv of req.interventions ?? []) {
+      if (iv.kind === "head") scale[iv.layer * H + iv.head] = iv.scale;
+      if (iv.kind === "mlp") mlpScale[iv.layer] = iv.scale;
+    }
     dev.queue.writeBuffer(this.headScale, 0, scale);
 
     const enc = dev.createCommandEncoder();
     const pass = enc.beginComputePass();
     const run = (k: Kernel, params: number[], buffers: GPUBuffer[], groups: [number, number?]) => {
-      const u = this.uniform(params, k === "layernorm" ? [2] : []);
+      const u = this.uniform(params, k === "layernorm" ? [2] : k === "linear" ? [7] : []);
       temp.push(u);
       const bind = dev.createBindGroup({
         layout: this.pipelines[k].getBindGroupLayout(0),
@@ -127,8 +131,8 @@ export class GpuEngine {
       pass.dispatchWorkgroups(groups[0], groups[1] ?? 1);
     };
     const W = (name: string) => this.weights.get(name)!;
-    const linear = (x: GPUBuffer, xOff: number, n: number, m: number, prefix: string, flags: number, res: GPUBuffer, resOff: number, out: GPUBuffer, outOff: number) =>
-      run("linear", [T, n, m, flags, resOff, outOff, xOff], [x, W(`${prefix}.weight`), W(`${prefix}.bias`), res, out], [Math.ceil(m / 128), Math.ceil(T / 8)]);
+    const linear = (x: GPUBuffer, xOff: number, n: number, m: number, prefix: string, flags: number, res: GPUBuffer, resOff: number, out: GPUBuffer, outOff: number, scale = 1) =>
+      run("linear", [T, n, m, flags, resOff, outOff, xOff, scale], [x, W(`${prefix}.weight`), W(`${prefix}.bias`), res, out], [Math.ceil(m / 128), Math.ceil(T / 8)]);
     const edits = (hook: string, layer: number) => {
       for (const iv of req.interventions ?? []) {
         if (iv.kind !== "resid") continue;
@@ -150,15 +154,17 @@ export class GpuEngine {
     for (let l = 0; l < L; l++) {
       const off = l * T * d;
       const patOff = l * H * T * T;
+      const qkvOff = l * T * 3 * d;
+      const mlpOff = l * T * d_mlp;
       run("layernorm", [T, d, ln_eps, off], [a.resid, a.identity, W(`h.${l}.ln_1.weight`), W(`h.${l}.ln_1.bias`), a.ln], [T]);
-      linear(a.ln, 0, d, 3 * d, `h.${l}.attn.c_attn`, 0, this.dummy, 0, a.qkv, 0);
-      run("scores", [T, d, d / H, patOff], [a.qkv, a.pattern], [T, H]);
-      run("mix", [T, d, d / H, patOff, l * H, off], [a.qkv, a.pattern, this.headScale, a.z], [Math.ceil((T * d) / 256)]);
+      linear(a.ln, 0, d, 3 * d, `h.${l}.attn.c_attn`, 0, this.dummy, 0, a.qkv, qkvOff);
+      run("scores", [T, d, d / H, patOff, qkvOff], [a.qkv, a.pattern], [T, H]);
+      run("mix", [T, d, d / H, patOff, l * H, off, qkvOff], [a.qkv, a.pattern, this.headScale, a.z], [Math.ceil((T * d) / 256)]);
       linear(a.z, off, d, d, `h.${l}.attn.c_proj`, 2, a.resid, off, a.residMid, off);
       edits("mid", l);
       run("layernorm", [T, d, ln_eps, off], [a.residMid, a.identity, W(`h.${l}.ln_2.weight`), W(`h.${l}.ln_2.bias`), a.ln], [T]);
-      linear(a.ln, 0, d, d_mlp, `h.${l}.mlp.c_fc`, 1, this.dummy, 0, a.mlp, 0);
-      linear(a.mlp, 0, d_mlp, d, `h.${l}.mlp.c_proj`, 2, a.residMid, off, a.resid, off + T * d);
+      linear(a.ln, 0, d, d_mlp, `h.${l}.mlp.c_fc`, 1, this.dummy, 0, a.mlp, mlpOff);
+      linear(a.mlp, mlpOff, d_mlp, d, `h.${l}.mlp.c_proj`, 2, a.residMid, off, a.resid, off + T * d, mlpScale[l]);
       edits("pre", l + 1);
     }
 
@@ -205,6 +211,8 @@ export class GpuEngine {
     if (req.read?.residMid) reads.push(["residMid", a.residMid, L * T * d * 4]);
     if (req.read?.pattern) reads.push(["pattern", a.pattern, L * H * T * T * 4]);
     if (req.read?.z) reads.push(["z", a.z, L * T * d * 4]);
+    if (req.read?.qkv) reads.push(["qkv", a.qkv, L * T * 3 * d * 4]);
+    if (req.read?.neurons) reads.push(["neurons", a.mlp, L * T * d_mlp * 4]);
     if (features) reads.push(["features", features, T * this.sae!.size * 4]);
     if (ids && lps) reads.push(["ids", ids, ids.size], ["lps", lps, lps.size]);
     const staged = reads.map(([key, src, size]) => {
@@ -223,6 +231,8 @@ export class GpuEngine {
     if (out.residMid) trace.residMid = new Float32Array(out.residMid);
     if (out.pattern) trace.pattern = new Float32Array(out.pattern);
     if (out.z) trace.z = new Float32Array(out.z);
+    if (out.qkv) trace.qkv = new Float32Array(out.qkv);
+    if (out.neurons) trace.neurons = new Float32Array(out.neurons);
     if (out.features) trace.features = new Float32Array(out.features);
     if (lensInfo) {
       const { positions, K, targets, rows } = lensInfo;
@@ -276,9 +286,9 @@ export class GpuEngine {
       resid: f32((L + 1) * cap * d),
       residMid: f32(L * cap * d),
       ln: f32(cap * d),
-      qkv: f32(cap * 3 * d),
+      qkv: f32(L * cap * 3 * d),
       z: f32(L * cap * d),
-      mlp: f32(cap * d_mlp),
+      mlp: f32(L * cap * d_mlp),
       pattern: f32(L * H * cap * cap),
       lensRows: f32((L + 1) * cap),
       lensLn: f32((L + 1) * cap * d),

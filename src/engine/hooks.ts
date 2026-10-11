@@ -11,14 +11,18 @@ export type Intervention =
   // to set the whole activation.
   | { kind: "resid"; hook: ResidHook; layer: number; position: number | "all"; mode: "set" | "add"; value: Float32Array }
   // Scale one attention head's output: 0 switches it off.
-  | { kind: "head"; layer: number; head: number; scale: number };
+  | { kind: "head"; layer: number; head: number; scale: number }
+  // Scale one layer's MLP output (hook_mlp_out), bias included.
+  | { kind: "mlp"; layer: number; scale: number };
 
 export interface RunRequest {
   tokens: number[];
   interventions?: Intervention[];
   // features: the attached sparse autoencoder's features, read from the
   // stream entering its layer (after any interventions there).
-  read?: { resid?: boolean; residMid?: boolean; pattern?: boolean; z?: boolean; features?: boolean };
+  // qkv: every layer's queries, keys and values; neurons: every MLP's
+  // neurons after GELU (hook_post).
+  read?: { resid?: boolean; residMid?: boolean; pattern?: boolean; z?: boolean; qkv?: boolean; neurons?: boolean; features?: boolean };
   // The logit lens: final LayerNorm and unembedding applied to the residual
   // stream before layer 0 and after every layer, at the chosen positions.
   // The row for the last layer is the model's real prediction.
@@ -42,6 +46,8 @@ export interface Trace {
   residMid?: Float32Array; // [n_layers, T, d_model]
   pattern?: Float32Array; // [n_layers, n_heads, T, T]
   z?: Float32Array; // [n_layers, T, n_heads * d_head]: each head's mix of values, before the output projection
+  qkv?: Float32Array; // [n_layers, T, 3 * d_model]: q, then k, then v, each heads side by side (hook_q, hook_k, hook_v)
+  neurons?: Float32Array; // [n_layers, T, d_mlp]
   features?: Float32Array; // [T, d_sae]
   lens?: Lens;
   ms: number; // wall time for the run, including reading results back

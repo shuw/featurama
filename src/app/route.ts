@@ -1,16 +1,27 @@
 import { useEffect, useState } from "react";
 
-export type Route = { view: "machine" } | { view: "attention"; head?: string } | { view: "layers" } | { view: "patching" } | { view: "features" } | { view: "play"; level?: string };
+export type ZoomPart = "head" | "mlp" | "stream" | "weights" | "map";
+export type Route =
+  | { view: "machine" } | { view: "attention"; head?: string } | { view: "layers" } | { view: "patching" } | { view: "features" }
+  | { view: "zoom"; part?: ZoomPart; arg?: string } | { view: "play"; level?: string };
 
 // The site's root path: "/" locally, "/featurama/" on GitHub Pages. index.html
 // sets <base> to it, so pages like /featurama/attention/9.9 still find their files.
 const base = () => new URL(document.baseURI).pathname;
 
-const VIEWS = ["", "attention", "layers", "patching", "features", "play", "index.html"];
+const VIEWS = ["", "attention", "layers", "patching", "features", "zoom", "play", "index.html"];
+const HEAD = /^([0-9]|1[01])\.([0-9]|1[01])$/;
 
 function parse(path: string): Route {
-  const [view, arg] = path.replace(/^\/+/, "").split("/");
-  if (view === "attention") return { view, head: arg && /^([0-9]|1[01])\.([0-9]|1[01])$/.test(arg) ? arg : undefined };
+  const [view, arg, arg2] = path.replace(/^\/+/, "").split("/");
+  if (view === "attention") return { view, head: arg && HEAD.test(arg) ? arg : undefined };
+  if (view === "zoom") {
+    if (arg === "head") return { view, part: arg, arg: arg2 && HEAD.test(arg2) ? arg2 : "9.9" };
+    // An MLP's layer, optionally with one of its 3,072 neurons: 7 or 7.1234.
+    if (arg === "mlp") return { view, part: arg, arg: arg2 && /^([0-9]|1[01])(\.([0-9]{1,3}|[0-2][0-9]{3}|30[0-6][0-9]|307[01]))?$/.test(arg2) ? arg2 : "7" };
+    if (arg === "stream" || arg === "weights" || arg === "map") return { view, part: arg };
+    return { view };
+  }
   if (view === "play") return { view, level: arg && /^[a-z]+$/.test(arg) ? arg : undefined };
   if (view === "layers" || view === "patching" || view === "features") return { view };
   return { view: "machine" };
@@ -23,15 +34,19 @@ export function href(r: Route) {
   if (r.view === "machine") return "./";
   if (r.view === "attention" && r.head) return `attention/${r.head}`;
   if (r.view === "play" && r.level) return `play/${r.level}`;
+  if (r.view === "zoom" && r.part) return r.arg ? `zoom/${r.part}/${r.arg}` : `zoom/${r.part}`;
   return r.view;
 }
 
-// Go to a page, keeping the shared prompt in the address.
-export function navigate(to: string) {
+// Go to a page, keeping the shared prompt in the address. `inPlace` is for
+// changes within a page (another head, another neuron): no new history entry
+// and no scroll to the top.
+export function navigate(to: string, inPlace = false) {
   const url = new URL(to, document.baseURI);
   url.search = location.search;
-  history.pushState(null, "", url);
-  dispatchEvent(new Event("routechange"));
+  if (inPlace) history.replaceState(null, "", url);
+  else history.pushState(null, "", url);
+  dispatchEvent(new CustomEvent("routechange", { detail: { inPlace } }));
 }
 
 // Older links used #/attention/9.9; swap them for the path.
@@ -55,9 +70,9 @@ export function useRoute(): Route {
     return current();
   });
   useEffect(() => {
-    const on = () => {
+    const on = (e?: Event) => {
       setRoute(current());
-      window.scrollTo(0, 0);
+      if (!(e instanceof CustomEvent && e.detail?.inPlace)) window.scrollTo(0, 0);
     };
     // Links inside the app change the page without reloading it.
     const click = (e: MouseEvent) => {

@@ -10,7 +10,7 @@ import { Beats } from "./Beats.tsx";
 import { attentionRow, combinedRow, headActivity, inductionScore, IOI_ROLES, IOI_SOURCE, JOB_TEXT, jobsOf, previousScore, type HeadJobs } from "./heads.ts";
 import { tokenize } from "./model.ts";
 import { done, markDone } from "./progress.ts";
-import { promptFromUrl } from "./route.ts";
+import { href, promptFromUrl } from "./route.ts";
 import { HighlightChips, highlighted } from "./highlights.tsx";
 import { PromptBox } from "./PromptBox.tsx";
 import type { Writer } from "./useWriter.ts";
@@ -268,6 +268,7 @@ export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, g
               </div>
               {trace && <p className="muted">On your prompt, {Math.round(prevHere * 100)}% of its attention goes to the token just before{indHere > 0 ? `, and ${Math.round(indHere * 100)}% to whatever followed an earlier copy` : ""}.</p>}
               <p className="caveat">Where a head looks is only half its story. What it copies from there, and what later layers do with it, matter too.</p>
+              <a className="link-small" href={href({ view: "zoom", part: "head", arg: head })}>Look inside head {head}: what it asks, fetches and writes →</a>
             </section>
             <section className="card">
               <HeadExamples id={head} setPrompt={edit} />

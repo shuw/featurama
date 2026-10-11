@@ -99,3 +99,13 @@ Each head also shows the passages where it works hardest (`public/head-examples.
 - Each feature's frequency, strongest passages and pushed words were measured on 3 million WikiText-103 tokens by tools/reference/features.py (needs a GPU or Apple silicon; output committed, not rerun in CI). Neuronpedia's explanations aren't used: their licence isn't stated.
 - Most features are named by the tokens they fire on, plus the words they push toward. A handful are hand-labelled after reading their passages.
 - Steering adds the feature's direction at every token but the start token, including newly written ones. Strengths of 30–60 change the topic; above about 90, GPT-2 loses grammar. The two versions share their dice rolls, so differences come from the steering.
+
+## Zoom (2026-10-11)
+
+- One Zoom section (⌥6; Play moves to ⌥7) with six levels, from the whole model down: the answer, the residual stream, a head, an MLP, then the fixed weights and a token map.
+- The engine keeps every layer's queries, keys, values and MLP neurons (about 65 MB more GPU memory at 256 tokens), and can unplug a whole MLP. Both match TransformerLens.
+- Who voted: each part's output through the final LayerNorm, at that position's real scale, against the difference between two tokens' embeddings. The votes add up exactly to the score gap, because the LayerNorm's scale is fixed from the real run.
+- Tracing back unplugs parts one at a time (zero ablation), 156 runs for the answer and up to 155 for each later step, a few seconds each. Deeper steps measure how much a part's output changes, not the answer, so a step stays meaningful however far back it goes. Zero ablation overstates MLP 0, which GPT-2 uses as part of reading tokens in; the page says so.
+- Neuron passages come from 2 million WikiText-103 tokens (tools/reference/neurons.py, output committed, 11 MB). What a neuron pushes toward is computed in the browser from its output weights.
+- Wiring is composition scores from TransformerLens (Elhage et al. 2021). A head's wires are its three strongest sources of each kind, if at least twice the typical score. The copying table runs each token through layer 0 for real before applying the head's value and output weights, since the raw embedding gets copy suppression wrong.
+- The token map is a UMAP of the token embedding, computed once (tools/reference/weights.py; umap-learn isn't in requirements.txt because CI doesn't run it). Data lives in public/zoom-data, not public/zoom, so the folder can't shadow the /zoom page.

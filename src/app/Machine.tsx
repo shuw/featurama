@@ -30,6 +30,7 @@ const EXHIBITS = [
   { n: 3, name: "Layers", text: "Watch the guess take shape", route: href({ view: "layers" }) },
   { n: 4, name: "Patching", text: "Swap activations until the answer flips", route: href({ view: "patching" }) },
   { n: 5, name: "Features", text: "Concepts inside the numbers, and steering with them", route: href({ view: "features" }) },
+  { n: 6, name: "Zoom", text: "From the answer down to single numbers", route: href({ view: "zoom" }) },
 ];
 
 // The classic experiment: switch off the heads that copy the name.
@@ -213,6 +214,7 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
               <div className="card-buttons">
                 <button className={isOff(focus!) ? "secondary" : "primary"} onClick={() => toggle(focus!)}>{isOff(focus!) ? "Plug back in" : "Unplug"}</button>
                 <a className="secondary" href={href({ view: "attention", head: focus! })}>Open in Attention →</a>
+                <a className="secondary" href={href({ view: "zoom", part: "head", arg: focus! })}>Look inside →</a>
               </div>
               <details className="more">
                 <summary>More about head {focus}</summary>
