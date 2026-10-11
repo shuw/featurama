@@ -21,11 +21,11 @@ async function build() {
 
 for (const path of ["src", "tests", "index.html"]) watch(join(root, path), { recursive: true }, () => (dirty = true));
 
-// Static files: the model under /model/, fixtures under /fixtures/.
+// Static files: anything in public/ (the model, head examples), and fixtures for the GPU check.
 function staticFile(path: string) {
   const clean = normalize(path).replace(/^(\.\.[/\\])+/, "");
-  if (clean.startsWith("/model/")) return Bun.file(join(root, "public", clean));
   if (clean.startsWith("/fixtures/")) return Bun.file(join(root, clean));
+  if (clean.startsWith("/model/") || clean === "/head-examples.json") return Bun.file(join(root, "public", clean));
   return null;
 }
 

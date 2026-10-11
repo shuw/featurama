@@ -1,5 +1,9 @@
 """Measure what each of GPT-2 small's 144 attention heads tends to do.
 
+Also writes public/head-examples.json: for each head, the passages where it
+does the most work (how much it writes, leaving out attention resting on the
+start token), with its attention over the words before.
+
 Runs TransformerLens over a sample of WikiText-103 (CC BY-SA) and writes
 src/app/head-atlas.json: for each head, where it looks (start token, previous
 token, itself, how far back, punctuation, which tokens draw it) and a copying
@@ -18,6 +22,8 @@ from transformer_lens import HookedTransformer
 root = Path(__file__).resolve().parents[2]
 SNIPPETS = 300
 MAX_TOKENS = 128
+EXAMPLES = 5  # passages per head
+WINDOW = 20  # tokens shown before the head's position
 
 
 def clean(text):
@@ -51,12 +57,27 @@ def main():
     vocab = model.cfg.d_vocab
     received = torch.zeros(L, H, vocab)  # attention mass each key token receives (start token excluded)
     freq = torch.zeros(vocab)
+    best = [[] for _ in range(L * H)]  # per head: (work, snippet, position, attention row)
+    all_tokens = []
 
     for text in texts:
         tokens = model.to_tokens(text)[:, :MAX_TOKENS]  # starts with <|endoftext|>
         T = tokens.shape[1]
-        _, cache = model.run_with_cache(tokens, names_filter=lambda name: name.endswith("hook_pattern"))
+        _, cache = model.run_with_cache(tokens, names_filter=lambda name: name.endswith(("hook_pattern", "hook_v", "hook_z")))
         pat = torch.stack([cache[f"blocks.{l}.attn.hook_pattern"][0] for l in range(L)])  # [L, H, T, T]
+        all_tokens.append(tokens[0])
+        # Work: the size of what each head writes at each position, leaving
+        # out what it copies from the start token (where idle heads rest).
+        v = torch.stack([cache[f"blocks.{l}.attn.hook_v"][0] for l in range(L)])  # [L, T, H, dh]
+        z = torch.stack([cache[f"blocks.{l}.attn.hook_z"][0] for l in range(L)])  # [L, T, H, dh]
+        z = z - pat.permute(0, 2, 1, 3)[..., 0:1] * v[:, 0:1]  # remove the start token's share
+        work = torch.einsum("lthd,lhdm->lhtm", z, model.W_O).norm(dim=-1)  # [L, H, T]
+        work[..., :2] = 0
+        top = work.max(dim=-1)
+        for l in range(L):
+            for h in range(H):
+                i = int(top.indices[l, h])
+                best[l * H + h].append((float(top.values[l, h]), len(all_tokens) - 1, i, pat[l, h, i, : i + 1].clone()))
         q = pat[:, :, 2:, :]  # queries from position 2 on, so "previous" never means the start token
         idx = torch.arange(2, T)  # query positions; row r of q is position idx[r]
         rows = idx - 2
@@ -113,6 +134,32 @@ def main():
                 "copying": round(copying[l, h].item(), 3),
                 "drawn": [[tok.decode([int(i)]), round(v.item(), 1)] for i, v in zip(top.indices, top.values) if v > 3],
             }
+
+    examples = {}
+    for l in range(L):
+        for h in range(H):
+            chosen = sorted(best[l * H + h], key=lambda x: -x[0])[:EXAMPLES]
+            items = []
+            for w, si, i, row in chosen:
+                toks = all_tokens[si]
+                start = max(1, i - WINDOW)
+                span = list(range(start, i + 1))
+                # Long-range heads often look further back than the window:
+                # include the word they look at most, with a gap (None) before the window.
+                focus = int(row[1:].argmax()) + 1
+                if focus < start:
+                    near = list(range(max(1, focus - 3), min(start, focus + 4)))
+                    span = near + ([None] if near[-1] + 1 < start else []) + span
+                items.append({
+                    "pieces": [None if t is None else tok.decode([int(toks[t])]) for t in span],
+                    "attn": [None if t is None else round(float(row[t]), 2) for t in span],
+                    "start": round(float(row[0]), 2),
+                    "next": tok.decode([int(toks[i + 1])]) if i + 1 < len(toks) else None,
+                })
+            examples[f"{l}.{h}"] = items
+    ex = root / "public" / "head-examples.json"
+    ex.write_text(json.dumps({"source": "WikiText-103 (CC BY-SA 4.0), validation set", "heads": examples}, ensure_ascii=False, separators=(",", ":")))
+    print(f"wrote {ex} ({ex.stat().st_size // 1024} KB)")
 
     out = root / "src" / "app" / "head-atlas.json"
     out.write_text(json.dumps({"source": "WikiText-103 validation, first 300 paragraphs, up to 128 tokens each", "heads": heads}, indent=1, ensure_ascii=False))

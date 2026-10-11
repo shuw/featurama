@@ -64,7 +64,7 @@ export function Signal({ layers, pieces, analysis, onSelect, version }: Props) {
           const x1 = x0 + ATTN_W - 4;
           return (
             <path key={i} d={`M${x0} ${y(a.from)} C ${x0 + 30} ${y(a.from)}, ${x1 - 30} ${y(pos)}, ${x1} ${y(pos)}`}
-              className={a.from === 0 ? "arc arc-start pulse-in" : "arc pulse-in"} strokeWidth={1 + 5 * a.weight} opacity={a.from === 0 ? 0.5 : 0.3 + 0.7 * a.weight}
+              className={a.from === 0 ? "arc arc-start pulse-in" : "arc pulse-in"} strokeWidth={a.from === 0 ? 1.2 : 1 + 5 * a.weight} opacity={a.from === 0 ? 0.5 : 0.3 + 0.7 * a.weight}
               style={{ animationDelay: `${a.layer * STEP}ms` }} />
           );
         })}

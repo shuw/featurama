@@ -52,8 +52,8 @@ export function App() {
   }, [theme]);
   useEffect(() => writePref("featurama-guide", guide ? "on" : "off"), [guide]);
 
-  // ⌥1–⌥3 (Alt on Windows and Linux) switch pages, even while typing.
-  // Holding ⌥ shows the shortcuts on the tabs.
+  // ⌥1–⌥5 (Alt on Windows and Linux) switch pages, even while typing.
+  // Holding ⌥ highlights the shortcuts on the tabs.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "Alt") setShowKeys(true);

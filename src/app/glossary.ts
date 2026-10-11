@@ -3,7 +3,7 @@
 
 export const GLOSSARY = {
   token: "The pieces GPT-2 reads: a word, part of a word, or punctuation. ␣ marks a space at the start of a token.",
-  start: "⟨start⟩ is GPT-2's <|endoftext|> token. Featurama puts it in front of every prompt, as researchers do. Heads with nothing to fetch often rest their attention on it.",
+  start: "⟨start⟩ is GPT-2's <|endoftext|> token, which Featurama puts in front of every prompt, as researchers do. A head must spread all of its attention over earlier tokens, so when it has nothing useful to fetch it parks it here, where it changes almost nothing. Researchers call this an attention sink.",
   next: "GPT-2's five likeliest next tokens and how likely it thinks each one is. Tab adds the first; click any of them to add it.",
   layer: "GPT-2 small runs 12 layers in order, numbered 0 to 11. Each one reads every token's running summary and adds to it.",
   head: "An attention head moves information from earlier tokens to later ones. Every layer has 12, each with its own idea of where to look.",
@@ -20,5 +20,7 @@ export const GLOSSARY = {
   local: "GPT-2 runs on your graphics card. Nothing you type leaves your browser.",
   guide: "Short hints beside each exhibit about what to try next.",
   shuffle: "Try another starting phrase",
+  direct: "What this part's output, on its own, does to GPT-2's next-token scores at this token: the whole words and numbers it makes most and least likely. Later layers can change the final outcome.",
+  highlight: "Outline the heads known to do one kind of job.",
   tab: "Press Tab to add GPT-2's top guess",
 } as const;

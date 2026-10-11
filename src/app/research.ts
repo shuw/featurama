@@ -218,6 +218,54 @@ add(["5.1"], "attnsae", "Long-match induction", "Does induction when two or more
 add(["5.5"], "attnsae", "Short-match induction", "Does induction when a single word repeats.");
 add(["10.2"], "attnsae", "Two jobs, confirmed", "Copies digits and completes web addresses; switching it off confirmed both.");
 
+// What studies found about particular layers' MLPs.
+export const MLP_NOTES: Record<number, { source: SourceKey; role: string; text: string }[]> = {
+  0: [
+    { source: "copy", role: "Part of the embedding", text: "Works like an extension of the word embedding: researchers often treat it as part of how each word is first represented." },
+    { source: "pronoun", role: "Pronoun pathway", text: "One of the MLPs on the path that picks he or she." },
+  ],
+  3: [{ source: "pronoun", role: "Pronoun pathway", text: "One of the MLPs on the path that picks he or she." }],
+  5: [{ source: "pronoun", role: "Pronoun pathway", text: "One of the MLPs on the path that picks he or she." }],
+  7: [{ source: "pronoun", role: "Pronoun pathway", text: "One of the MLPs on the path that picks he or she." }],
+  8: [{ source: "greater", role: "Year comparison", text: "Helps work out which years are later than the start year, mostly by feeding the MLPs after it." }],
+  9: [
+    { source: "greater", role: "Later years", text: "Raises the odds of years later than the start year." },
+    { source: "sequence", role: "Sequences", text: "Critical for continuing sequences: switching it off makes them over 90% worse." },
+  ],
+  10: [
+    { source: "greater", role: "Later years", text: "Raises the odds of years later than the start year." },
+    { source: "pronoun", role: "Pronoun writer", text: "Has one of the largest direct effects on he or she." },
+  ],
+  11: [
+    { source: "greater", role: "Caps the range", text: "Keeps the predicted year within about 50 years of the start." },
+    { source: "pronoun", role: "Pronoun writer", text: "Has one of the largest direct effects on he or she." },
+  ],
+};
+
+// Prompts that should wake up a few well-understood heads.
+const REPEAT = "The cat sat on the mat. The cat sat on the";
+const NAMES = "When Mary and John went to the store, John gave a drink to";
+export const TRY_PROMPTS: Record<string, string> = {
+  "9.1": "Monday, Tuesday, Wednesday, Thursday,",
+  "1.5": "one, two, three, four,",
+  "5.1": REPEAT, "5.5": REPEAT, "6.9": REPEAT, "7.2": REPEAT, "7.10": REPEAT,
+  "4.11": "Once upon a time there was a",
+  "2.2": "Once upon a time there was a",
+  "9.6": NAMES, "9.9": NAMES, "10.0": NAMES, "10.7": NAMES, "11.10": NAMES, "8.6": NAMES, "7.3": NAMES, "7.9": NAMES, "8.10": NAMES,
+  "0.1": NAMES, "3.0": NAMES,
+  "8.11": "The Federal Bureau of Investigation (F", "10.10": "The Federal Bureau of Investigation (F", "11.4": "The Federal Bureau of Investigation (F",
+  "8.8": "The war lasted from the year 1732 to the year 17",
+  "9.7": "Mary went to the shop because", "10.9": "Mary went to the shop because",
+};
+
+// The every-head survey's online dashboard for one head.
+export const dashboardUrl = (id: string) => `https://robertzk.github.io/gpt2-small-saes/cards/top_features_${id.replace(".", "_")}.html`;
+
+// A head's one-line label: the survey's, or else what we measured.
+export function label(id: string) {
+  return STUDY[id]?.[0] ?? null;
+}
+
 export function research(id: string) {
   const study = STUDY[id];
   return {

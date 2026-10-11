@@ -9,14 +9,18 @@ import type { Weights } from "../engine/model.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
 import { predictions, show, word } from "./analysis.ts";
 import { GLOSSARY } from "./glossary.ts";
-import { headActivity, IOI_ROLE, IOI_ROLES, IOI_SOURCE, JOB_TEXT, jobsOf, mlpActivity, ROLES, type HeadJobs } from "./heads.ts";
-import { HeadBadges, JobLegend } from "./JobLegend.tsx";
+import { headActivity, headOutput, IOI_ROLE, IOI_ROLES, IOI_SOURCE, JOB_TEXT, jobsOf, mlpActivity, ROLES, type HeadJobs } from "./heads.ts";
+import { DirectEffect } from "./DirectEffect.tsx";
+import { HighlightChips, highlighted } from "./highlights.tsx";
+import { MlpCard } from "./MlpCard.tsx";
 import { tokenize } from "./model.ts";
 import { pct, PromptBox } from "./PromptBox.tsx";
 import type { Writer } from "./useWriter.ts";
 import { href } from "./route.ts";
 import { Term, Tip } from "./Tip.tsx";
 import { ATLAS_SOURCE, habits } from "./atlas.ts";
+import { HeadExamples } from "./HeadExamples.tsx";
+import { label } from "./research.ts";
 import { ResearchNotes } from "./ResearchNotes.tsx";
 import { useRun } from "./useRun.ts";
 
@@ -51,6 +55,8 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
   const [hover, setHover] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [unplugged, setUnplugged] = useState<string[]>([]);
+  const [lit, setLit] = useState<string | null>(null);
+  const litHeads = useMemo(() => highlighted(lit, jobs, L, H), [lit, jobs, L, H]);
   const unKey = unplugged.join(",");
 
   const run = useCallback(async (t: number[]) => {
@@ -65,12 +71,12 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
     const targets = intact ? Array.from(intact.lens!.ids.subarray(L * 5, L * 5 + 5)) : [];
     // The lens at every position, so pointing at any token can show what GPT-2 expected next there.
     const positions = t.map((_, i) => i);
-    const trace = await engine.run({ tokens: t, interventions, read: { z: true, resid: true, residMid: true }, lens: { positions, topK: 5, targets } });
+    const trace = await engine.run({ tokens: t, interventions, read: { z: true, resid: true, residMid: true }, lens: { positions, topK: 10, targets } });
     const row = L * t.length + last; // final layer, last token
     const compare = intact
       ? {
           items: targets.map((id, k) => ({ piece: tokenizer.piece(id), before: Math.exp(intact.lens!.logprobs[L * 5 + k]), after: Math.exp(trace.lens!.targetLogprobs[row * targets.length + k]) })),
-          now: tokenizer.piece(trace.lens!.ids[row * 5]),
+          now: tokenizer.piece(trace.lens!.ids[row * 10]),
         }
       : null;
     return { trace, compare };
@@ -94,7 +100,12 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
   const shade = (v: number, max: number) => (0.05 + 0.95 * Math.sqrt(v / max)).toFixed(2);
 
   const focus = hover ?? selected;
-  const focused = focus ? describeHead(focus, jobs, H, activity?.heads ?? null, headMax) : null;
+  const focusMlp = focus?.startsWith("m") ? Number(focus.slice(1)) : null;
+  const focused = focus && focusMlp === null ? describeHead(focus, jobs, H, activity?.heads ?? null, headMax) : null;
+  const headVector = useCallback(() => {
+    const [hl, hh] = (focus ?? "0.0").split(".").map(Number);
+    return headOutput(result!.trace, weights, hl, hh, pos);
+  }, [focus, result, weights, pos]);
   const isOff = (id: string) => unplugged.includes(id);
   const toggle = (id: string) => setUnplugged((u) => (u.includes(id) ? u.filter((x) => x !== id) : [...u, id]));
   const tryNameMovers = () => {
@@ -117,6 +128,7 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
 
       <div className="machine-body">
         <div className={!current && result ? "stage table-wrap stale" : "stage table-wrap"}>
+          <HighlightChips value={lit} onChange={setLit} />
           <div className="table" role="grid" aria-label="Attention heads by layer" onMouseLeave={() => setHover(null)}>
             <div className="table-corner"><Tip tip={GLOSSARY.head} align="start">head</Tip></div>
             {Array.from({ length: L }, (_, l) => <div key={l} className="table-col">{l}</div>)}
@@ -127,7 +139,7 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
                   const measured = jobsOf(jobs, l, h, H);
                   const off = isOff(id);
                   return (
-                    <button key={id} className={`head${focus === id ? " head-on" : ""}${selected === id ? " head-picked" : ""}${off ? " head-off" : ""}`}
+                    <button key={id} className={`head${focus === id ? " head-on" : ""}${selected === id ? " head-picked" : ""}${off ? " head-off" : ""}${lit ? (litHeads.has(id) ? " head-lit" : " head-dim") : ""}`}
                       style={{
                         ...(off ? {} : { background: `rgba(var(--attn-rgb), ${activity ? shade(activity.heads[l * H + h], headMax) : "0.05"})` }),
                         // Alternate two identical animations so each new run replays the ripple.
@@ -138,7 +150,6 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
                       onClick={() => setSelected(id)} onKeyDown={(e) => (e.key === "u" || e.key === "U") && toggle(id)}
                       aria-pressed={selected === id}
                       aria-label={`Head ${id}${off ? ", unplugged" : ""}${measured.length ? `, ${measured.map((j) => JOB_TEXT[j].name).join(", ")}` : ""}${IOI_ROLES[id] ? ", research role" : ""}`}>
-                      <HeadBadges jobs={jobs} l={l} h={h} H={H} />
                     </button>
                   );
                 })}
@@ -146,10 +157,12 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
             ))}
             <div className="table-row-label table-mlp-label"><Tip tip={GLOSSARY.mlp} align="start">MLP</Tip></div>
             {Array.from({ length: L }, (_, l) => (
-              <a key={l} href={href({ view: "layers" })} className="mlp-cell" aria-label={`MLP of layer ${l}`}
+              <button key={l} className={`mlp-cell${focus === `m${l}` ? " head-on" : ""}${selected === `m${l}` ? " head-picked" : ""}`} aria-label={`MLP of layer ${l}`}
+                onMouseEnter={() => setHover(`m${l}`)} onFocus={() => setHover(`m${l}`)} onBlur={() => setHover(null)} onClick={() => setSelected(`m${l}`)} aria-pressed={selected === `m${l}`}
                 style={{ background: `rgba(var(--mlp-rgb), ${activity ? shade(activity.mlps[l], mlpMax) : "0.05"})`, animationName: version % 2 ? "ripple-a" : "ripple-b", animationDelay: `${l * 35 + 20}ms` }} />
             ))}
           </div>
+          {hover && <div className="grid-hint" aria-hidden="true"><strong>{hover.startsWith("m") ? `MLP ${hover.slice(1)}` : hover}</strong> {hover.startsWith("m") ? "Works on each token by itself. Click for what it pushes toward." : label(hover) ?? habits(hover)[0]}</div>}
           <div className="table-foot">
             <Tip tip={GLOSSARY.layer} align="start">layer →</Tip>
             <Tip tip={GLOSSARY.activity} align="end"><span className="scale"><span>less</span><span className="scale-bar" /><span>more added at “{lastWord}”</span></span></Tip>
@@ -186,16 +199,21 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
               )}
             </section>
           )}
-          {focused ? (
+          {focusMlp !== null ? (
+            <MlpCard layer={focusMlp} trace={result?.trace ?? null} weights={weights} tokenizer={tokenizer} position={pos}
+              activity={activity ? `${Math.round((activity.mlps[focusMlp] / mlpMax) * 100)}%` : "…"} />
+          ) : focused ? (
             <div className="card head-card">
               <div className="head-name">Head {focus}</div>
               <p className="muted">Layer {focus!.split(".")[0]}, head {focus!.split(".")[1]}. {isOff(focus!) ? "Unplugged: it adds nothing." : `At “${lastWord}” it adds ${focused.activity} as much as the busiest head.`}</p>
               {focused.jobs.map((j) => <p key={j.name}><span className="badge">{j.letter}</span> <strong>{j.name}.</strong> {j.text} <Term tip={GLOSSARY.score}>Tested just now: {j.score}</Term>.</p>)}
+              {result && current && <DirectEffect trace={result.trace} weights={weights} tokenizer={tokenizer} vector={headVector} position={pos} off={isOff(focus!)} />}
               <ResearchNotes id={focus!} />
               <div className="habits">
                 <Term tip={ATLAS_SOURCE}><span className="card-label">Measured on Wikipedia text</span></Term>
                 <ul>{habits(focus!).map((h) => <li key={h}>{h}</li>)}</ul>
               </div>
+              <HeadExamples id={focus!} setPrompt={setPrompt} limit={2} />
               <div className="card-buttons">
                 <button className={isOff(focus!) ? "secondary" : "primary"} onClick={() => toggle(focus!)}>{isOff(focus!) ? "Plug back in" : "Unplug"}</button>
                 <a className="secondary" href={href({ view: "attention", head: focus! })}>Open in Attention →</a>
@@ -206,9 +224,8 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
               <div className="card-label">How to read this</div>
               <p>Columns are the 12 layers, run left to right. Each square in a column is one of that layer's attention heads, and the teal row is its MLP. Head 9.9 is layer 9, head 9.</p>
               <p className="muted">Head numbers are just labels: head 3 of layer 2 and head 3 of layer 7 have nothing in common. Read down a column, not across a row.</p>
-              <p>Letters mark heads whose job is known:</p>
-              <JobLegend />
-              <p className="muted">Click a head to learn about it and to unplug it.</p>
+              <p className="muted">Use the Highlight chips above the grid to outline heads known to do a particular job.</p>
+              <p className="muted">Click a head to learn about it and to unplug it, or an MLP square to see what it pushes toward.</p>
               <button className="secondary" onClick={tryNameMovers}>Try it: unplug the name movers</button>
             </div>
           )}
@@ -240,7 +257,8 @@ function headline({ items, now }: { items: { piece: string; before: number; afte
 function expectedAt(trace: Trace, L: number, pos: number, tok: Tokenizer) {
   const T = trace.tokens.length;
   const row = L * T + pos;
-  return { piece: tok.piece(trace.lens!.ids[row * 5]), p: Math.exp(trace.lens!.logprobs[row * 5]) };
+  const K = trace.lens!.topK;
+  return { piece: tok.piece(trace.lens!.ids[row * K]), p: Math.exp(trace.lens!.logprobs[row * K]) };
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {

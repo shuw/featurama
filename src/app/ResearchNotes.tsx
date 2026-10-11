@@ -1,6 +1,6 @@
 // "What researchers found" for one head, each claim linked to its source.
 
-import { research, SOURCES, type SourceKey } from "./research.ts";
+import { dashboardUrl, research, SOURCES, type SourceKey } from "./research.ts";
 
 function Source({ k }: { k: SourceKey }) {
   const s = SOURCES[k];
@@ -22,6 +22,7 @@ export function ResearchNotes({ id }: { id: string }) {
           {r.circuits.map((c, i) => <li key={i}><strong>{c.role}.</strong> {c.text} <Source k={c.source} /></li>)}
         </ul>
       )}
+      <a className="link-small" href={dashboardUrl(id)} target="_blank" rel="noreferrer">See head {id}'s patterns in the survey's dashboard ↗</a>
     </div>
   );
 }

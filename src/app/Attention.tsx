@@ -9,13 +9,15 @@ import { Beats } from "./Beats.tsx";
 import { attentionRow, inductionScore, IOI_ROLES, IOI_SOURCE, JOB_TEXT, jobsOf, previousScore, type HeadJobs } from "./heads.ts";
 import { tokenize } from "./model.ts";
 import { done, markDone } from "./progress.ts";
-import { HeadBadges, JobLegend } from "./JobLegend.tsx";
+import { HighlightChips, highlighted } from "./highlights.tsx";
 import { PromptBox } from "./PromptBox.tsx";
 import type { Writer } from "./useWriter.ts";
 import { Ring } from "./Ring.tsx";
 import { GLOSSARY } from "./glossary.ts";
 import { Term, Tip } from "./Tip.tsx";
 import { ATLAS_SOURCE, habits } from "./atlas.ts";
+import { HeadExamples } from "./HeadExamples.tsx";
+import { label } from "./research.ts";
 import { ResearchNotes } from "./ResearchNotes.tsx";
 import { useRun } from "./useRun.ts";
 
@@ -63,7 +65,7 @@ export function Attention({ engine, tokenizer, jobs, head: routeHead, guide, pro
   const [guess, setGuess] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<string | null>(null);
   const [, rerender] = useState(0);
-  const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { pattern: true }, lens: { positions: [t.length - 1], topK: 5 } }), [engine]);
+  const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { pattern: true }, lens: { positions: [t.length - 1], topK: 10 } }), [engine]);
   const { result: trace } = useRun(tokens, run);
 
   useEffect(() => {
@@ -71,6 +73,8 @@ export function Attention({ engine, tokenizer, jobs, head: routeHead, guide, pro
   }, [routeHead]);
 
   const [l, h] = head.split(".").map(Number);
+  const [lit, setLit] = useState<string | null>(null);
+  const litHeads = useMemo(() => highlighted(lit, jobs, L, H), [lit, jobs, L, H]);
   // Step to a neighbouring head, staying inside the 12 x 12 grid.
   const move = (dl: number, dh: number) => {
     const id = `${Math.min(L - 1, Math.max(0, l + dl))}.${Math.min(H - 1, Math.max(0, h + dh))}`;
@@ -155,10 +159,9 @@ export function Attention({ engine, tokenizer, jobs, head: routeHead, guide, pro
               Array.from({ length: L }, (_, ll) => {
                 const id = `${ll}.${hh}`;
                 return (
-                  <button key={id} data-head={id} className={id === head ? "pick pick-on" : "pick"} onClick={() => setHead(id)} disabled={predicting}
-                    aria-label={`Head ${id}`} aria-pressed={id === head} tabIndex={id === head ? 0 : -1} title={`Head ${id}`}
+                  <button key={id} data-head={id} className={`pick${id === head ? " pick-on" : ""}${lit ? (litHeads.has(id) ? " pick-lit" : " pick-dim") : ""}`} onClick={() => setHead(id)} disabled={predicting}
+                    aria-label={`Head ${id}`} aria-pressed={id === head} tabIndex={id === head ? 0 : -1} title={`Head ${id}: ${label(id) ?? habits(id)[0]}`}
                     style={{ gridColumn: ll + 1, gridRow: hh + 1 }}>
-                    <HeadBadges jobs={jobs} l={ll} h={hh} H={H} max={1} />
                   </button>
                 );
               }),
@@ -170,7 +173,7 @@ export function Attention({ engine, tokenizer, jobs, head: routeHead, guide, pro
           ) : (
             <p className="picker-note">Click a square or use the arrow keys. Columns are layers; rows are heads.</p>
           )}
-          <JobLegend compact />
+          <HighlightChips value={lit} onChange={setLit} compact />
         </div>
         <div className="attn-main">
           <Arcs pieces={pieces} row={predicting ? null : row} query={q} onQuery={setQuery} locked={predicting} />
@@ -181,7 +184,7 @@ export function Attention({ engine, tokenizer, jobs, head: routeHead, guide, pro
       <Beats
         guide={guide && (predicting
           ? "Guess first. All four words are in the sentence, but only one finishes “gave a drink to…”."
-          : "Click a token to see where it looks. Pick heads in the small grid; letters mark heads whose job is known.")}
+          : "Click a token to see where it looks. Pick heads in the small grid; the chips under it outline heads known to do a job.")}
         side={!predicting && (
           <section className="card">
             <div className="card-label">Challenges</div>
@@ -229,6 +232,9 @@ export function Attention({ engine, tokenizer, jobs, head: routeHead, guide, pro
               {trace && <p className="muted">On your prompt, {Math.round(prevHere * 100)}% of its attention goes to the token just before{indHere > 0 ? `, and ${Math.round(indHere * 100)}% to whatever followed an earlier copy` : ""}.</p>}
               <p className="caveat">Where a head looks is only half its story. What it copies from there, and what later layers do with it, matter too.</p>
             </section>
+            <section className="card">
+              <HeadExamples id={head} setPrompt={edit} />
+            </section>
           </>
         )}
       </Beats>
@@ -264,7 +270,7 @@ function Arcs({ pieces, row, query, onQuery, locked }: { pieces: string[]; row: 
     <div className="arcs" onMouseLeave={() => setTip(null)}>
       {row && (
         <p className="arcs-caption">
-          Where “{q}” looks. Thicker arcs mean more attention; grey dashes go to the <Term tip={GLOSSARY.start}>start token</Term>.
+          Where “{q}” looks. Thicker arcs mean more attention. The thin grey dashes are attention resting on the <Term tip={GLOSSARY.start}>start token</Term>, where a head parks it when there's nothing useful to fetch.
         </p>
       )}
       <div className="arcs-scroll" ref={scroller}>
@@ -276,9 +282,10 @@ function Arcs({ pieces, row, query, onQuery, locked }: { pieces: string[]; row: 
             const enter = () => show_((xs[query] + xs[j]) / 2, base - lift * 0.75, arcTip(j, a));
             return (
               <g key={j} className="arc-group" onMouseEnter={enter} onMouseLeave={() => setTip(null)}>
-                <path d={d} className={j === 0 ? "arc arc-start" : "arc"} strokeWidth={1 + 7 * a} opacity={j === 0 ? 0.6 : 0.25 + 0.75 * a} />
+                {/* Attention resting on the start token is drawn thin whatever its share, so idle heads don't dominate. */}
+                <path d={d} className={j === 0 ? "arc arc-start" : "arc"} strokeWidth={j === 0 ? 1.5 : 1 + 7 * a} opacity={j === 0 ? 0.7 : 0.25 + 0.75 * a} />
                 <path d={d} className="arc-hit" />
-                {a >= 0.08 && <text x={xs[j]} y={base - 6} textAnchor="middle" className="arc-pct">{Math.round(a * 100)}%</text>}
+                {a >= 0.08 && <text x={xs[j]} y={base - 6} textAnchor="middle" className={j === 0 ? "arc-pct arc-pct-rest" : "arc-pct"}>{j === 0 ? `resting ${Math.round(a * 100)}%` : `${Math.round(a * 100)}%`}</text>}
               </g>
             );
           })}

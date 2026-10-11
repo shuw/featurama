@@ -38,9 +38,16 @@ export function useWriter(engine: GpuEngine | null, tokenizer: Tokenizer | null,
         if (tokens.cut) break;
         const trace = await engine.run({ tokens, lens: { positions: [tokens.length - 1], topK: TOP_K } });
         if (cancelled) break;
-        const ids = trace.lens!.ids.subarray(L * TOP_K, (L + 1) * TOP_K);
-        const lps = trace.lens!.logprobs.subarray(L * TOP_K, (L + 1) * TOP_K);
-        text += tokenizer.piece(pick(ids, lps, TEMPERATURE[wildRef.current]));
+        let ids = trace.lens!.ids.subarray(L * TOP_K, (L + 1) * TOP_K);
+        let lps = trace.lens!.logprobs.subarray(L * TOP_K, (L + 1) * TOP_K);
+        // After a typed trailing space, only tokens that start with it fit.
+        const fits = Array.from(ids, (id) => tokenizer.piece(id).startsWith(tokens.trailing));
+        if (tokens.trailing && fits.some(Boolean)) {
+          ids = ids.filter((_, i) => fits[i]);
+          lps = lps.filter((_, i) => fits[i]);
+        }
+        const piece = tokenizer.piece(pick(ids, lps, TEMPERATURE[wildRef.current]));
+        text += piece.startsWith(tokens.trailing) ? piece.slice(tokens.trailing.length) : piece;
         append(text);
         await new Promise((r) => setTimeout(r, 140));
       }

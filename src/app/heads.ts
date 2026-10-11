@@ -146,3 +146,83 @@ export function inductionScore(trace: Trace, H: number, l: number, h: number): n
   }
   return n >= 3 ? s / n : 0;
 }
+
+// The vector a head writes at one position: its mix of values through its
+// output projection.
+export function headOutput(trace: Trace, w: Weights, l: number, h: number, position: number): Float32Array {
+  const { n_heads: H, d_model: d } = w.config;
+  const dh = d / H;
+  const T = trace.tokens.length;
+  const WO = w.f32(`h.${l}.attn.c_proj.weight`);
+  const out = new Float32Array(d);
+  for (let k = 0; k < dh; k++) {
+    const zk = trace.z![(l * T + position) * d + h * dh + k];
+    const row = (h * dh + k) * d;
+    for (let o = 0; o < d; o++) out[o] += zk * WO[row + o];
+  }
+  return out;
+}
+
+// The vector an MLP writes at one position.
+export function mlpOutput(trace: Trace, d: number, l: number, position: number): Float32Array {
+  const T = trace.tokens.length;
+  const out = new Float32Array(d);
+  for (let i = 0; i < d; i++) out[i] = trace.resid![((l + 1) * T + position) * d + i] - trace.residMid![(l * T + position) * d + i];
+  return out;
+}
+
+let F16: Float32Array | null = null;
+
+// Direct effect: what one part's output, on its own, does to the next-token
+// scores at a position, through the final LayerNorm (using that position's
+// real scale) and the unembedding. Later layers can change the real outcome.
+export function directEffect(trace: Trace, w: Weights, vec: Float32Array, position: number, k = 5, allowed?: Uint8Array) {
+  const { n_layers: L, d_model: d, d_vocab: V } = w.config;
+  const T = trace.tokens.length;
+  if (!F16) F16 = f16Table();
+  const x = trace.resid!.subarray((L * T + position) * d, (L * T + position + 1) * d);
+  let mean = 0;
+  for (let i = 0; i < d; i++) mean += x[i];
+  mean /= d;
+  let v = 0;
+  for (let i = 0; i < d; i++) v += (x[i] - mean) ** 2;
+  const scale = 1 / Math.sqrt(v / d + w.config.ln_eps);
+  const gain = w.f32("ln_f.weight");
+  let cm = 0;
+  for (let i = 0; i < d; i++) cm += vec[i];
+  cm /= d;
+  const eff = new Float32Array(d);
+  for (let i = 0; i < d; i++) eff[i] = (vec[i] - cm) * scale * gain[i];
+  const wte = w.raw("wte.weight");
+  const logits = new Float32Array(V);
+  for (let t = 0; t < V; t++) {
+    let s = 0;
+    const base = t * d;
+    for (let i = 0; i < d; i++) s += eff[i] * F16[wte[base + i]];
+    logits[t] = s;
+  }
+  const order = (sign: 1 | -1) => {
+    const best: number[] = [];
+    for (let t = 0; t < V; t++) {
+      if (allowed && !allowed[t]) continue;
+      if (best.length < k || sign * logits[t] > sign * logits[best[best.length - 1]]) {
+        best.push(t);
+        best.sort((a, b) => sign * (logits[b] - logits[a]));
+        if (best.length > k) best.pop();
+      }
+    }
+    return best.map((id) => ({ id, value: logits[id] }));
+  };
+  return { up: order(1), down: order(-1) };
+}
+
+function f16Table() {
+  const t = new Float32Array(65536);
+  for (let h = 0; h < 65536; h++) {
+    const sign = h & 0x8000 ? -1 : 1;
+    const exp = (h >> 10) & 0x1f;
+    const frac = h & 0x3ff;
+    t[h] = exp === 0 ? sign * 2 ** -14 * (frac / 1024) : exp === 31 ? (frac ? NaN : sign * Infinity) : sign * 2 ** (exp - 15) * (1 + frac / 1024);
+  }
+  return t;
+}

@@ -10,7 +10,7 @@ const A = [2, 6, 8].map((i) => (i + 0.5) * CH);
 export function Wordmark({ height, loop = false, label = "featurama" }: { height: number; loop?: boolean; label?: string }) {
   const [play, setPlay] = useState(0);
   return (
-    <svg key={play} className={loop ? "wordmark wordmark-loop" : "wordmark"} height={height} viewBox="-6 -8 316 140" role="img" aria-label={label}
+    <svg key={play} className={loop ? "wordmark wordmark-loop" : "wordmark"} height={height} viewBox="-6 16 316 118" role="img" aria-label={label}
       onMouseEnter={() => !loop && setPlay((n) => n + 1)}>
       <path className="wm-lane" d="M0 128H303" pathLength={1} />
       <path className="wm-hop wm-near" d={`M${A[2]} 84 C ${A[2]} 50, ${A[1]} 50, ${A[1]} 84`} pathLength={1} />

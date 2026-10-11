@@ -19,7 +19,7 @@ export interface Prediction {
 interface Props {
   value: string;
   onChange: (value: string) => void;
-  tokens: number[] & { cut?: boolean };
+  tokens: number[] & { cut?: boolean; trailing?: string };
   tokenizer: Tokenizer;
   next: Prediction[] | null; // null shows `nextNote` instead
   nextNote?: string;
@@ -47,9 +47,13 @@ export function PromptBox({ value, onChange, tokens, tokenizer, next, nextNote =
   const mirror = useRef<HTMLDivElement>(null);
   const [caretAtEnd, setCaretAtEnd] = useState(true);
   const pieces = tokens.slice(1).map((id) => ({ id, text: tokenizer.piece(id) }));
-  const top = next?.[0];
+  // With a trailing space typed, only guesses that start with it fit; adding one types the rest.
+  const trailing = tokens.trailing ?? "";
+  const fitting = next?.filter((n) => n.piece.startsWith(trailing) && n.piece.length > trailing.length).slice(0, 5) ?? null;
+  const rest = (piece: string) => piece.slice(trailing.length);
+  const top = fitting?.[0];
   const writing = !!writer?.writing;
-  const ghost = !disabled && !writing && !stale && caretAtEnd && top && !tokens.cut ? top.piece : null;
+  const ghost = !disabled && !writing && !stale && caretAtEnd && top && !tokens.cut ? rest(top.piece) : null;
 
   const trackCaret = () => {
     const el = input.current;
@@ -134,6 +138,7 @@ export function PromptBox({ value, onChange, tokens, tokenizer, next, nextNote =
               {show(p.text)}
             </span>
           ))}
+          {trailing && <span className="tk tk-pending" title="A space at the end waits for the next word: GPT-2 reads spaces as the start of the following token.">{show(trailing)}</span>}
           {tokens.cut && <span className="tk-cut">cut at {MAX_PROMPT_TOKENS - 1}</span>}
         </span>
       </div>
@@ -141,8 +146,9 @@ export function PromptBox({ value, onChange, tokens, tokenizer, next, nextNote =
         <span className="row-label"><Tip tip={GLOSSARY.next} align="start">Next token</Tip></span>
         <span className="next-strip">
           {!next && <span className="next-note">{nextNote}</span>}
-          {next?.map((n, i) => (
-            <button key={i} className="next-chip" onClick={() => accept(n.piece)} title={`Add “${show(n.piece)}” to the prompt`} disabled={disabled}>
+          {next && fitting?.length === 0 && <span className="next-note">GPT-2's top guesses don't start with a space here. Delete the space to see them.</span>}
+          {fitting?.map((n, i) => (
+            <button key={i} className="next-chip" onClick={() => accept(rest(n.piece))} title={`Add “${show(n.piece)}” to the prompt`} disabled={disabled}>
               <span className="next-piece">{show(n.piece)}</span>
               <span className="next-p">{pct(n.p)}</span>
               <span className="next-bar" style={{ width: `${Math.max(2, n.p * 100)}%` }} />

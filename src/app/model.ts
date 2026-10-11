@@ -55,11 +55,15 @@ export function useModel(): ModelState {
 
 export const MAX_PROMPT_TOKENS = 48;
 
-// The start token plus the prompt, cut to fit; `cut` says whether text was dropped.
+// The start token plus the prompt, cut to fit; `cut` says whether text was
+// dropped. GPT-2 puts spaces at the start of the next word (" you" is one
+// token), so a trailing space is held back from the model ("token healing")
+// and returned as `trailing`; suggestions must then start with it.
 export function tokenize(tok: Tokenizer, text: string) {
-  const ids = [BOS, ...tok.encode(text)];
+  const trailing = /[ \t]+$/.exec(text)?.[0] ?? "";
+  const ids = [BOS, ...tok.encode(trailing ? text.slice(0, -trailing.length) : text)];
   const tokens = ids.slice(0, MAX_PROMPT_TOKENS);
-  return Object.assign(tokens, { cut: ids.length > tokens.length });
+  return Object.assign(tokens, { cut: ids.length > tokens.length, trailing });
 }
 
 // One run reads everything the Signal view needs, with the lens at every
