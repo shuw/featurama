@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { GpuEngine } from "../engine/gpu/engine.ts";
 import type { Trace } from "../engine/hooks.ts";
 import { loadModel, type LoadProgress } from "../engine/load.ts";
-import { BOS } from "../engine/model.ts";
+import { BOS, type Weights } from "../engine/model.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
+import { measureJobs, type HeadJobs } from "./heads.ts";
 
 export type ModelState =
   | { status: "loading"; progress: LoadProgress | null }
-  | { status: "ready"; engine: GpuEngine; tokenizer: Tokenizer }
+  | { status: "ready"; engine: GpuEngine; tokenizer: Tokenizer; weights: Weights; jobs: HeadJobs }
   | { status: "error"; message: string };
 
 // Where the weights live; a <meta name="featurama-model"> in index.html can point elsewhere.
@@ -30,7 +31,8 @@ async function start() {
   try {
     const { weights, tokenizer } = await loadModel(MODEL_BASE, (progress) => set({ status: "loading", progress }));
     const engine = await GpuEngine.create(weights);
-    set({ status: "ready", engine, tokenizer });
+    const jobs = await measureJobs(engine);
+    set({ status: "ready", engine, tokenizer, weights, jobs });
   } catch (e) {
     set({ status: "error", message: e instanceof Error ? e.message : String(e) });
   }
@@ -53,8 +55,11 @@ export function useModel(): ModelState {
 
 export const MAX_PROMPT_TOKENS = 48;
 
+// The start token plus the prompt, cut to fit; `cut` says whether text was dropped.
 export function tokenize(tok: Tokenizer, text: string) {
-  return [BOS, ...tok.encode(text)].slice(0, MAX_PROMPT_TOKENS);
+  const ids = [BOS, ...tok.encode(text)];
+  const tokens = ids.slice(0, MAX_PROMPT_TOKENS);
+  return Object.assign(tokens, { cut: ids.length > tokens.length });
 }
 
 // One run reads everything the Signal view needs, with the lens at every

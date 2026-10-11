@@ -108,8 +108,8 @@ export class GpuEngine {
       pass.dispatchWorkgroups(groups[0], groups[1] ?? 1);
     };
     const W = (name: string) => this.weights.get(name)!;
-    const linear = (x: GPUBuffer, n: number, m: number, prefix: string, flags: number, res: GPUBuffer, resOff: number, out: GPUBuffer, outOff: number) =>
-      run("linear", [T, n, m, flags, resOff, outOff], [x, W(`${prefix}.weight`), W(`${prefix}.bias`), res, out], [Math.ceil(m / 128), Math.ceil(T / 8)]);
+    const linear = (x: GPUBuffer, xOff: number, n: number, m: number, prefix: string, flags: number, res: GPUBuffer, resOff: number, out: GPUBuffer, outOff: number) =>
+      run("linear", [T, n, m, flags, resOff, outOff, xOff], [x, W(`${prefix}.weight`), W(`${prefix}.bias`), res, out], [Math.ceil(m / 128), Math.ceil(T / 8)]);
     const edits = (hook: string, layer: number) => {
       for (const iv of req.interventions ?? []) {
         if (iv.kind !== "resid") continue;
@@ -132,14 +132,14 @@ export class GpuEngine {
       const off = l * T * d;
       const patOff = l * H * T * T;
       run("layernorm", [T, d, ln_eps, off], [a.resid, a.identity, W(`h.${l}.ln_1.weight`), W(`h.${l}.ln_1.bias`), a.ln], [T]);
-      linear(a.ln, d, 3 * d, `h.${l}.attn.c_attn`, 0, this.dummy, 0, a.qkv, 0);
+      linear(a.ln, 0, d, 3 * d, `h.${l}.attn.c_attn`, 0, this.dummy, 0, a.qkv, 0);
       run("scores", [T, d, d / H, patOff], [a.qkv, a.pattern], [T, H]);
-      run("mix", [T, d, d / H, patOff, l * H], [a.qkv, a.pattern, this.headScale, a.z], [Math.ceil((T * d) / 256)]);
-      linear(a.z, d, d, `h.${l}.attn.c_proj`, 2, a.resid, off, a.residMid, off);
+      run("mix", [T, d, d / H, patOff, l * H, off], [a.qkv, a.pattern, this.headScale, a.z], [Math.ceil((T * d) / 256)]);
+      linear(a.z, off, d, d, `h.${l}.attn.c_proj`, 2, a.resid, off, a.residMid, off);
       edits("mid", l);
       run("layernorm", [T, d, ln_eps, off], [a.residMid, a.identity, W(`h.${l}.ln_2.weight`), W(`h.${l}.ln_2.bias`), a.ln], [T]);
-      linear(a.ln, d, d_mlp, `h.${l}.mlp.c_fc`, 1, this.dummy, 0, a.mlp, 0);
-      linear(a.mlp, d_mlp, d, `h.${l}.mlp.c_proj`, 2, a.residMid, off, a.resid, off + T * d);
+      linear(a.ln, 0, d, d_mlp, `h.${l}.mlp.c_fc`, 1, this.dummy, 0, a.mlp, 0);
+      linear(a.mlp, 0, d_mlp, d, `h.${l}.mlp.c_proj`, 2, a.residMid, off, a.resid, off + T * d);
       edits("pre", l + 1);
     }
 
@@ -172,6 +172,7 @@ export class GpuEngine {
     if (req.read?.resid) reads.push(["resid", a.resid, (L + 1) * T * d * 4]);
     if (req.read?.residMid) reads.push(["residMid", a.residMid, L * T * d * 4]);
     if (req.read?.pattern) reads.push(["pattern", a.pattern, L * H * T * T * 4]);
+    if (req.read?.z) reads.push(["z", a.z, L * T * d * 4]);
     if (ids && lps) reads.push(["ids", ids, ids.size], ["lps", lps, lps.size]);
     const staged = reads.map(([key, src, size]) => {
       const dst = dev.createBuffer({ size, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
@@ -188,6 +189,7 @@ export class GpuEngine {
     if (out.resid) trace.resid = new Float32Array(out.resid);
     if (out.residMid) trace.residMid = new Float32Array(out.residMid);
     if (out.pattern) trace.pattern = new Float32Array(out.pattern);
+    if (out.z) trace.z = new Float32Array(out.z);
     if (lensInfo) {
       const { positions, K, targets, rows } = lensInfo;
       const all = new Float32Array(out.lps);
@@ -241,7 +243,7 @@ export class GpuEngine {
       residMid: f32(L * cap * d),
       ln: f32(cap * d),
       qkv: f32(cap * 3 * d),
-      z: f32(cap * d),
+      z: f32(L * cap * d),
       mlp: f32(cap * d_mlp),
       pattern: f32(L * H * cap * cap),
       lensRows: f32((L + 1) * cap),

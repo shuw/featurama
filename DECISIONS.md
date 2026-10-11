@@ -48,3 +48,9 @@ Three zoom levels share one engine: **Table** (all 144 heads and 12 MLPs as a ma
 ## Features: `gpt2-small-res-jb`, layer 7 (planned)
 
 Joseph Bloom's residual SAEs (MIT, plain ReLU, so a subset of features gives exact activations). Ship about 2,000 curated features as static files (about 8 MB). Labels and examples come from Neuronpedia's exports, whose licence is unstated: ask before launch.
+
+## Head jobs are measured, not quoted (2026-10-10)
+
+The Machine view marks heads with known jobs. Previous-token, duplicate-token and induction heads are measured in the learner's browser at load, on 20 random tokens shown twice, so a mark always reflects this model. The measured heads match the literature: 4.11 is a previous-token head (score 1.00), and 5.1, 5.5, 6.9, 7.2 and 7.10 are induction heads (0.82–0.94). Roles that need more than attention patterns to find (the IOI name movers, negative name movers and S-inhibition heads) are labelled with their source, Wang et al. 2022.
+
+Head activity in the Machine view is the length of each head's output vector at the last token, after the output projection. That needs each layer's `hook_z`, which the engine now keeps and the GPU check compares with TransformerLens.

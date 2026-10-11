@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { Attention } from "./Attention.tsx";
 import { Layers } from "./Layers.tsx";
+import { Machine } from "./Machine.tsx";
 import { useModel } from "./model.ts";
+import { href, useRoute } from "./route.ts";
 
 type Theme = "system" | "light" | "dark";
 
@@ -18,8 +21,11 @@ function writePref(key: string, value: string) {
   } catch {}
 }
 
+const NEXT_THEME: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
+
 export function App() {
   const model = useModel();
+  const route = useRoute();
   const [theme, setTheme] = useState<Theme>(() => readPref("featurama-theme", "system"));
   const [guide, setGuide] = useState(() => readPref("featurama-guide", "on") === "on");
 
@@ -30,41 +36,114 @@ export function App() {
   }, [theme]);
   useEffect(() => writePref("featurama-guide", guide ? "on" : "off"), [guide]);
 
-  const nextTheme: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
+  const tab = (view: "machine" | "attention" | "layers", label: string) => (
+    <a className={route.view === view ? "tab tab-on" : "tab"} href={href({ view })} aria-current={route.view === view ? "page" : undefined}>{label}</a>
+  );
 
   return (
     <div className="app">
       <header className="top">
-        <div className="brand">
-          <svg width="26" height="26" viewBox="0 0 28 28" aria-hidden="true">
-            <path d="M0 9 H28 M0 19 H28" className="mark-lane" />
-            <path d="M4 9 C 16 9, 12 19, 24 19" className="mark-arc" />
-            <circle cx="24" cy="19" r="3.5" className="mark-dot" />
-          </svg>
-          <span>featurama</span>
+        <div className="top-inner">
+          <a className="brand" href={href({ view: "machine" })} aria-label="Featurama home">
+            <Mark />
+            <span>featurama</span>
+          </a>
+          <nav className="tabs" aria-label="Sections">
+            {tab("machine", "Machine")}
+            {tab("attention", "Attention")}
+            {tab("layers", "Layers")}
+          </nav>
+          <div className="utils">
+            <button className="switch" role="switch" aria-checked={guide} onClick={() => setGuide(!guide)}>
+              <span className="switch-track"><span className="switch-thumb" /></span> Guide
+            </button>
+            <button className="icon-button" onClick={() => setTheme(NEXT_THEME[theme])} aria-label={`Theme: ${theme}. Change theme`} title={`Theme: ${theme}`}>
+              <ThemeIcon theme={theme} />
+            </button>
+          </div>
         </div>
-        <nav>
-          <button className="pill" onClick={() => setGuide(!guide)} aria-pressed={guide}>Guide {guide ? "on" : "off"}</button>
-          <button className="pill" onClick={() => setTheme(nextTheme[theme])}>Theme: {theme}</button>
-        </nav>
       </header>
       <main>
         {model.status === "ready" ? (
-          <Layers engine={model.engine} tokenizer={model.tokenizer} guide={guide} />
-        ) : model.status === "error" ? (
-          <section className="loading">
-            <h1>GPT-2 couldn't start</h1>
-            <p>{model.message}</p>
-          </section>
+          route.view === "attention" ? (
+            <Attention engine={model.engine} tokenizer={model.tokenizer} jobs={model.jobs} head={route.head} guide={guide} />
+          ) : route.view === "layers" ? (
+            <Layers engine={model.engine} tokenizer={model.tokenizer} guide={guide} />
+          ) : (
+            <Machine engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} jobs={model.jobs} />
+          )
         ) : (
-          <section className="loading">
-            <h1>Look inside a real language model</h1>
-            <p>Featurama runs GPT-2, a 124-million-parameter language model, right here in your browser, with every one of its inner workings open to read and rewire.</p>
-            <Loading progress={model.progress} />
+          <section className="hero">
+            <HeroArt />
+            {model.status === "error" ? (
+              <>
+                <h1>GPT-2 couldn't start</h1>
+                <p className="dek">{model.message}</p>
+              </>
+            ) : (
+              <>
+                <h1>Look inside a real language model</h1>
+                <p className="dek">Featurama runs GPT-2, a 124-million-parameter language model, on your own graphics card. Every one of its inner workings is open to read and to rewire.</p>
+                <Loading progress={model.progress} />
+              </>
+            )}
           </section>
         )}
       </main>
+      <footer className="foot">
+        <span>GPT-2 small (OpenAI, 2019) running on your GPU with WebGPU. Nothing you type leaves your browser.</span>
+        <a href="https://github.com/shuw/featurama">Source</a>
+      </footer>
     </div>
+  );
+}
+
+function Mark() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 28 28" aria-hidden="true">
+      <path d="M0 9 H28 M0 19 H28" className="mark-lane" />
+      <path d="M4 9 C 16 9, 12 19, 24 19" className="mark-arc" />
+      <circle cx="24" cy="19" r="3.5" className="mark-dot" />
+    </svg>
+  );
+}
+
+function ThemeIcon({ theme }: { theme: Theme }) {
+  if (theme === "light")
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" className="icon">
+        <circle cx="10" cy="10" r="4" />
+        <path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.4 1.4M14.6 14.6 16 16M4 16l1.4-1.4M14.6 5.4 16 4" />
+      </svg>
+    );
+  if (theme === "dark")
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" className="icon">
+        <path d="M16 12.5A7 7 0 0 1 7.5 4a7 7 0 1 0 8.5 8.5Z" />
+      </svg>
+    );
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" className="icon">
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 3a7 7 0 0 1 0 14Z" className="icon-fill" />
+    </svg>
+  );
+}
+
+// Token lines with attention arcs drawing themselves while the model loads.
+function HeroArt() {
+  const ys = [20, 44, 68, 92];
+  return (
+    <svg className="hero-art" viewBox="0 0 560 112" aria-hidden="true">
+      {ys.map((y, i) => <path key={i} d={`M0 ${y} H560`} className="hero-lane" style={{ animationDelay: `${i * 120}ms` }} />)}
+      {[0, 1, 2, 3, 4, 5].map((k) => {
+        const x = 70 + k * 80;
+        const from = ys[k % 3];
+        const to = ys[3];
+        return <path key={k} d={`M${x} ${from} C ${x + 34} ${from}, ${x + 26} ${to}, ${x + 60} ${to}`} className="hero-arc" style={{ animationDelay: `${300 + k * 160}ms` }} />;
+      })}
+      {[0, 1, 2, 3, 4, 5].map((k) => <circle key={k} cx={70 + k * 80 + 70} cy={ys[3]} r={3 + (k % 3)} className="hero-dot" style={{ animationDelay: `${500 + k * 160}ms` }} />)}
+    </svg>
   );
 }
 
@@ -74,10 +153,10 @@ function Loading({ progress }: { progress: { loaded: number; total: number; from
     ? "Starting…"
     : progress.fromCache
       ? "Loading GPT-2 from this browser's cache…"
-      : `Downloading GPT-2: ${(progress.loaded / 1e6).toFixed(0)} of ${(progress.total / 1e6).toFixed(0)} MB. This happens once.`;
+      : `Downloading GPT-2: ${(progress.loaded / 1e6).toFixed(0)} of ${(progress.total / 1e6).toFixed(0)} MB. This happens once; afterwards it loads from your browser.`;
   return (
     <div className="progress">
-      <div className="progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(frac * 100)}>
+      <div className="progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(frac * 100)} aria-label="Loading GPT-2">
         <div style={{ width: `${frac * 100}%` }} />
       </div>
       <div className="progress-label">{label}</div>

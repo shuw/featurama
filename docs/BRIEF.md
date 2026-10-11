@@ -53,5 +53,5 @@ Exhibits 1–6, the three views, a landing page with model-loading progress, pro
 
 1. Engine: GPT-2 small on WebGPU with readable and writable activations. **Done**: see DECISIONS.md for timings.
 2. Verify against TransformerLens. **Done**: `bun test`, `bun run test:gpu`.
-3. Exhibit 3, the logit lens, in the Signal view with all four beats.
-4. Stop and review with Shu before building further.
+3. Exhibit 3, the logit lens, in the Signal view with all four beats. **Done.**
+4. Review with Shu. **Done**; next were the Table home (Machine view) and Exhibit 2 (Attention). **Done.**

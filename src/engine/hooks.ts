@@ -16,7 +16,7 @@ export type Intervention =
 export interface RunRequest {
   tokens: number[];
   interventions?: Intervention[];
-  read?: { resid?: boolean; residMid?: boolean; pattern?: boolean };
+  read?: { resid?: boolean; residMid?: boolean; pattern?: boolean; z?: boolean };
   // The logit lens: final LayerNorm and unembedding applied to the residual
   // stream before layer 0 and after every layer, at the chosen positions.
   // The row for the last layer is the model's real prediction.
@@ -39,6 +39,7 @@ export interface Trace {
   resid?: Float32Array; // [n_layers + 1, T, d_model]
   residMid?: Float32Array; // [n_layers, T, d_model]
   pattern?: Float32Array; // [n_layers, n_heads, T, T]
+  z?: Float32Array; // [n_layers, T, n_heads * d_head]: each head's mix of values, before the output projection
   lens?: Lens;
   ms: number; // wall time for the run, including reading results back
 }

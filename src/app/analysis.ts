@@ -20,8 +20,9 @@ export interface Analysis {
   finals: string[]; // the model's final answer at each position
   lens: Reading[]; // n_layers + 1 readings at `position`: before layer 0, then after each layer
   final: string;
-  first: number; // first reading whose top guess is the final answer
+  settle: number; // the reading from which the top guess is the final answer for good
   changes: number; // times the top guess changes after the first layer
+  distinct: number; // different words (ignoring case and punctuation) among those guesses
 }
 
 export function analyse(trace: Trace, finalsTrace: Trace, cfg: ModelConfig, tok: Tokenizer, position: number): Analysis {
@@ -74,7 +75,19 @@ export function analyse(trace: Trace, finalsTrace: Trace, cfg: ModelConfig, tok:
   const final = readings[L].piece;
   let changes = 0;
   for (let l = 2; l <= L; l++) if (readings[l].piece !== readings[l - 1].piece) changes++;
-  return { pieces, position, arcs, mlp, finals, lens: readings, final, first: readings.findIndex((r) => r.piece === final), changes };
+  let settle = L;
+  while (settle > 0 && readings[settle - 1].piece === final) settle--;
+  const words = readings.slice(1).map((r) => r.piece.trim().toLowerCase()).filter((w) => /\p{L}/u.test(w));
+  return { pieces, position, arcs, mlp, finals, lens: readings, final, settle, changes, distinct: new Set(words).size };
+}
+
+// The model's top guesses for the token after the last one, from a run whose
+// lens included the last position.
+export function predictions(trace: Trace, L: number, tok: Tokenizer) {
+  const lens = trace.lens!;
+  const P = lens.positions.length;
+  const row = L * P + lens.positions.indexOf(trace.tokens.length - 1);
+  return Array.from({ length: lens.topK }, (_, k) => ({ piece: tok.piece(lens.ids[row * lens.topK + k]), p: Math.exp(lens.logprobs[row * lens.topK + k]) }));
 }
 
 // Readings are numbered as layers: reading 0 is before layer 0 (just the

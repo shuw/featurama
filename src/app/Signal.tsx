@@ -22,7 +22,8 @@ interface Props {
 export function Signal({ layers, pieces, analysis, onSelect }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const T = pieces.length;
-  const laneH = Math.max(15, Math.min(30, 380 / T));
+  // A fixed line height up to 16 tokens, so typing adds lines instead of rescaling the drawing.
+  const laneH = T <= 16 ? 26 : Math.max(14, 416 / T);
   const width = LABEL_W + layers * COL_W + 16 + OUT_W;
   const lanesBottom = TOP + T * laneH;
   const lensTop = lanesBottom + 26;

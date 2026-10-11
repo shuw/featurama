@@ -61,6 +61,7 @@ def record(model, tokens):
         resid = torch.stack([cache["blocks.0.hook_resid_pre"][0]] + [cache[f"blocks.{i}.hook_resid_post"][0] for i in range(n)])
         mid = torch.stack([cache[f"blocks.{i}.hook_resid_mid"][0] for i in range(n)])
         pattern = torch.stack([cache[f"blocks.{i}.attn.hook_pattern"][0] for i in range(n)])
+        z = torch.stack([cache[f"blocks.{i}.attn.hook_z"][0] for i in range(n)])
         # Logit lens: the final LayerNorm recomputed on each layer's residual, then unembed.
         lens = model.unembed(model.ln_final(resid)).log_softmax(-1)
         lens_top = lens.topk(5, dim=-1)
@@ -70,6 +71,7 @@ def record(model, tokens):
         "resid": arr(resid, "float32"),
         "resid_mid": arr(mid, "float32"),
         "pattern": arr(pattern, "float32"),
+        "z": arr(z, "float32"),
         "logits_last": arr(logits[0, -1], "float32"),
         "top_ids": arr(final.indices, "int32"),
         "top_logprobs": arr(final.values, "float32"),

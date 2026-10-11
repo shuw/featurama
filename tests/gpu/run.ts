@@ -59,7 +59,7 @@ async function main() {
       const T = tokens.length;
       const trace = await engine.run({
         tokens,
-        read: { resid: true, residMid: true, pattern: true },
+        read: { resid: true, residMid: true, pattern: true, z: true },
         lens: { positions: tokens.map((_, i) => i), topK: 5 },
       });
       const lensIds = decode(raw.lens_ids) as Int32Array;
@@ -83,6 +83,7 @@ async function main() {
         resid: rowError(trace.resid!, decode(raw.resid) as Float32Array, d),
         residMid: rowError(trace.residMid!, decode(raw.resid_mid) as Float32Array, d),
         pattern: rowError(trace.pattern!, decode(raw.pattern) as Float32Array, T),
+        z: rowError(trace.z!, decode(raw.z) as Float32Array, d / engine.config.n_heads),
         lensTop1: top1 / rows,
         lensTop5: top5 / rows,
         lensLogprobErr: lpErr,
@@ -90,9 +91,9 @@ async function main() {
         ms: trace.ms,
       };
       results.cases.push(c);
-      log(`${variant} ${name.padEnd(7)} T=${String(T).padStart(2)}  resid ${c.resid.toExponential(1)}  mid ${c.residMid.toExponential(1)}  pattern ${c.pattern.toExponential(1)}  lens top-1 ${(c.lensTop1 * 100).toFixed(1)}%  top-5 ${(c.lensTop5 * 100).toFixed(1)}%  logprob err ${c.lensLogprobErr.toExponential(1)}`);
+      log(`${variant} ${name.padEnd(7)} T=${String(T).padStart(2)}  resid ${c.resid.toExponential(1)}  mid ${c.residMid.toExponential(1)}  pattern ${c.pattern.toExponential(1)}  z ${c.z.toExponential(1)}  lens top-1 ${(c.lensTop1 * 100).toFixed(1)}%  top-5 ${(c.lensTop5 * 100).toFixed(1)}%  logprob err ${c.lensLogprobErr.toExponential(1)}`);
       if (variant === "fp16") {
-        if (c.resid > 1e-3 || c.residMid > 1e-3 || c.pattern > 1e-3) fail(`${name}: activations differ from TransformerLens beyond 1e-3`);
+        if (c.resid > 1e-3 || c.residMid > 1e-3 || c.pattern > 1e-3 || c.z > 1e-3) fail(`${name}: activations differ from TransformerLens beyond 1e-3`);
         if (c.lensTop1 < 0.99 || c.lensLogprobErr > 1e-2) fail(`${name}: logit lens differs from TransformerLens`);
       } else if (!c.finalTop1) fail(`${name}: final prediction differs from the full-precision model`);
     }
