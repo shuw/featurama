@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { Attention } from "./Attention.tsx";
+import { Features } from "./Features.tsx";
+import { PlayHub, PuzzleLevel } from "./Puzzles.tsx";
+import { Loading } from "./Loading.tsx";
 import { Game } from "./Game.tsx";
 import { Layers } from "./Layers.tsx";
 import { Machine } from "./Machine.tsx";
 import { Patching } from "./Patching.tsx";
 import { useModel, type ModelState } from "./model.ts";
-import { href, useRoute, type Route } from "./route.ts";
+import { href, navigate, promptFromUrl, setPromptInUrl, shareUrl, useRoute, type Route } from "./route.ts";
 import { randomPhrase } from "./phrases.ts";
 import { GLOSSARY } from "./glossary.ts";
 import { Tip } from "./Tip.tsx";
@@ -19,7 +22,8 @@ const TABS: { view: Route["view"]; label: string; key: string }[] = [
   { view: "attention", label: "Attention", key: "2" },
   { view: "layers", label: "Layers", key: "3" },
   { view: "patching", label: "Patching", key: "4" },
-  { view: "play", label: "Play", key: "5" },
+  { view: "features", label: "Features", key: "5" },
+  { view: "play", label: "Play", key: "6" },
 ];
 
 function readPref(key: string): string | null {
@@ -42,9 +46,16 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(() => (readPref("featurama-theme") === "dark" ? "dark" : "light"));
   const [guide, setGuide] = useState(() => readPref("featurama-guide") !== "off");
   // One prompt for every page, so switching pages keeps what you typed. It
-  // starts as a random phrase; once you edit it, it's yours across reloads.
-  const [prompt, setPromptState] = useState(() => readPref("featurama-prompt") ?? randomPhrase());
+  // starts as a random phrase, or the one in a shared link; once edited, it's
+  // kept across reloads and in the address, so the link can be shared.
+  const [prompt, setPromptState] = useState(() => promptFromUrl() ?? readPref("featurama-prompt") ?? randomPhrase());
+  const [edited, setEdited] = useState(() => promptFromUrl() !== null || readPref("featurama-prompt") !== null);
+  useEffect(() => {
+    const t = setTimeout(() => setPromptInUrl(edited ? prompt : null), 300);
+    return () => clearTimeout(t);
+  }, [prompt, edited]);
   const [showKeys, setShowKeys] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -52,7 +63,7 @@ export function App() {
   }, [theme]);
   useEffect(() => writePref("featurama-guide", guide ? "on" : "off"), [guide]);
 
-  // ⌥1–⌥5 (Alt on Windows and Linux) switch pages, even while typing.
+  // ⌥1–⌥6 (Alt on Windows and Linux) switch pages, even while typing.
   // Holding ⌥ highlights the shortcuts on the tabs.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -61,7 +72,7 @@ export function App() {
       const tab = TABS.find((t) => e.code === `Digit${t.key}`);
       if (!tab) return;
       e.preventDefault();
-      location.hash = href({ view: tab.view } as Route);
+      navigate(href({ view: tab.view } as Route));
     };
     const up = (e: KeyboardEvent) => e.key === "Alt" && setShowKeys(false);
     const blur = () => setShowKeys(false);
@@ -77,6 +88,7 @@ export function App() {
 
   const savePrompt = (text: string) => {
     setPromptState(text);
+    setEdited(true);
     writePref("featurama-prompt", text);
   };
   const ready = model.status === "ready" ? model : null;
@@ -89,6 +101,7 @@ export function App() {
   const shuffle = () => {
     writer.stop();
     setPromptState(randomPhrase(prompt));
+    setEdited(false);
     try {
       localStorage.removeItem("featurama-prompt");
     } catch {}
@@ -117,6 +130,15 @@ export function App() {
               <span className="switch-track"><span className="switch-thumb" /></span>
               <span className="switch-label">Guide</span>
             </button>
+            <button className="icon-button" onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(shareUrl(prompt));
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1800);
+              } catch {}
+            }} aria-label="Copy a link to this page with your prompt" title={copied ? "Link copied" : "Copy link"}>
+              {copied ? <span className="copied" aria-live="polite">✓</span> : <LinkIcon />}
+            </button>
             <button className="icon-button" onClick={() => setTheme(theme === "light" ? "dark" : "light")}
               aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={theme === "light" ? "Dark mode" : "Light mode"}>
               <ThemeIcon theme={theme} />
@@ -127,9 +149,13 @@ export function App() {
       <main>
         {model.status === "ready" ? (
           route.view === "attention" ? (
-            <Attention engine={model.engine} tokenizer={model.tokenizer} jobs={model.jobs} head={route.head} guide={guide} {...shared} />
+            <Attention engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} jobs={model.jobs} head={route.head} guide={guide} {...shared} />
+          ) : route.view === "features" ? (
+            <Features engine={model.engine} tokenizer={model.tokenizer} {...shared} />
           ) : route.view === "play" ? (
-            <Game engine={model.engine} tokenizer={model.tokenizer} />
+            route.level === "guess" ? <Game engine={model.engine} tokenizer={model.tokenizer} />
+            : route.level ? <PuzzleLevel key={route.level} engine={model.engine} tokenizer={model.tokenizer} jobs={model.jobs} id={route.level} />
+            : <PlayHub />
           ) : route.view === "patching" ? (
             <Patching engine={model.engine} tokenizer={model.tokenizer} guide={guide} />
           ) : route.view === "layers" ? (
@@ -157,7 +183,7 @@ export function App() {
       </main>
       <footer className="foot">
         <span>GPT-2 small (OpenAI, 2019) running on your GPU with WebGPU. Nothing you type leaves your browser.</span>
-        <span>⌥1–⌥5 switch pages · Tab adds GPT-2's suggestion</span>
+        <span>⌥1–⌥6 switch pages · Tab adds GPT-2's suggestion</span>
         <a href="https://github.com/shuw/featurama">Source</a>
       </footer>
     </div>
@@ -170,6 +196,15 @@ function Status({ model }: { model: ModelState }) {
   if (model.status === "error") return <span className="status status-error"><span className="status-dot" />GPT-2 unavailable</span>;
   const pct = model.progress ? Math.round((model.progress.loaded / model.progress.total) * 100) : 0;
   return <span className="status"><span className="status-dot" />Loading GPT-2 {pct}%</span>;
+}
+
+function LinkIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+    </svg>
+  );
 }
 
 function ThemeIcon({ theme }: { theme: Theme }) {
@@ -187,19 +222,3 @@ function ThemeIcon({ theme }: { theme: Theme }) {
   );
 }
 
-function Loading({ progress }: { progress: { loaded: number; total: number; fromCache: boolean } | null }) {
-  const frac = progress ? progress.loaded / progress.total : 0;
-  const label = !progress
-    ? "Starting…"
-    : progress.fromCache
-      ? "Loading GPT-2 from this browser's cache…"
-      : `Downloading GPT-2: ${(progress.loaded / 1e6).toFixed(0)} of ${(progress.total / 1e6).toFixed(0)} MB. This happens once; afterwards it loads from your browser.`;
-  return (
-    <div className="progress">
-      <div className="progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(frac * 100)} aria-label="Loading GPT-2">
-        <div style={{ width: `${frac * 100}%` }} />
-      </div>
-      <div className="progress-label">{label}</div>
-    </div>
-  );
-}

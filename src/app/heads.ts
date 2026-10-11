@@ -226,3 +226,19 @@ function f16Table() {
   }
   return t;
 }
+
+// Where a token pulls information from across all heads: each head's
+// attention, leaving out the start token, weighted by how much that head
+// adds at the token. Shares sum to 1.
+export function combinedRow(trace: Trace, H: number, L: number, query: number, activity: Float32Array): number[] {
+  const T = trace.tokens.length;
+  const out = new Array<number>(T).fill(0);
+  for (let l = 0; l < L; l++)
+    for (let h = 0; h < H; h++) {
+      const w = activity[l * H + h];
+      const base = ((l * H + h) * T + query) * T;
+      for (let j = 1; j <= query; j++) out[j] += w * trace.pattern![base + j];
+    }
+  const sum = out.reduce((a, b) => a + b, 0);
+  return sum > 0 ? out.map((v) => v / sum) : out;
+}

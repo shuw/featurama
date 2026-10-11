@@ -7,6 +7,7 @@ import { analyse, predictions, readingLabel, word, type Analysis } from "./analy
 import { Beats } from "./Beats.tsx";
 import { runPrompt, tokenize } from "./model.ts";
 import { done, markDone } from "./progress.ts";
+import { promptFromUrl } from "./route.ts";
 import { PromptBox } from "./PromptBox.tsx";
 import type { Writer } from "./useWriter.ts";
 import { Ring } from "./Ring.tsx";
@@ -45,11 +46,11 @@ interface Props {
 
 export function Layers({ engine, tokenizer, guide, prompt, setPrompt, shuffle, writer }: Props) {
   const L = engine.config.n_layers;
-  const [override, setOverride] = useState<string | null>(() => (done("layers.predict") ? null : PREDICT_PROMPT));
+  const [override, setOverride] = useState<string | null>(() => (done("layers.predict") || promptFromUrl() !== null ? null : PREDICT_PROMPT));
   const text = override ?? prompt;
   const tokens = useMemo(() => tokenize(tokenizer, text), [tokenizer, text]);
   const [position, setPosition] = useState<number | null>(null); // null follows the last token
-  const [predicting, setPredicting] = useState(!done("layers.predict"));
+  const [predicting, setPredicting] = useState(() => !done("layers.predict") && promptFromUrl() === null); // a shared link skips the opening question
   const [guess, setGuess] = useState<number | null>(null);
   const [defaultAnswer, setDefaultAnswer] = useState<Analysis | null>(null);
   const [, rerender] = useState(0);

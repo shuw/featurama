@@ -16,7 +16,9 @@ export type Intervention =
 export interface RunRequest {
   tokens: number[];
   interventions?: Intervention[];
-  read?: { resid?: boolean; residMid?: boolean; pattern?: boolean; z?: boolean };
+  // features: the attached sparse autoencoder's features, read from the
+  // stream entering its layer (after any interventions there).
+  read?: { resid?: boolean; residMid?: boolean; pattern?: boolean; z?: boolean; features?: boolean };
   // The logit lens: final LayerNorm and unembedding applied to the residual
   // stream before layer 0 and after every layer, at the chosen positions.
   // The row for the last layer is the model's real prediction.
@@ -40,6 +42,7 @@ export interface Trace {
   residMid?: Float32Array; // [n_layers, T, d_model]
   pattern?: Float32Array; // [n_layers, n_heads, T, T]
   z?: Float32Array; // [n_layers, T, n_heads * d_head]: each head's mix of values, before the output projection
+  features?: Float32Array; // [T, d_sae]
   lens?: Lens;
   ms: number; // wall time for the run, including reading results back
 }

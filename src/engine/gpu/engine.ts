@@ -34,6 +34,7 @@ export class GpuEngine {
   private acts?: Activations;
   private dummy: GPUBuffer;
   private headScale: GPUBuffer;
+  private sae?: { layer: number; size: number; out?: GPUBuffer; cap: number };
 
   private constructor(
     readonly device: GPUDevice,
@@ -77,6 +78,24 @@ export class GpuEngine {
     );
     const info = adapter.info ? [adapter.info.vendor, adapter.info.architecture, adapter.info.description].filter(Boolean).join(" ") : "";
     return new GpuEngine(device, w.config, weights, Object.fromEntries(entries) as Record<Kernel, GPUComputePipeline>, info);
+  }
+
+  // A sparse autoencoder on the stream entering `layer`, in the folded form
+  // features = ReLU(x @ encoder + bias). encoder is [d_model, size] fp16.
+  attachSae(layer: number, size: number, encoder: Uint16Array, bias: Uint16Array) {
+    for (const [name, raw] of [["sae.weight", encoder], ["sae.bias", bias]] as const) {
+      const buf = this.device.createBuffer({ size: raw.byteLength, usage: S, mappedAtCreation: true });
+      new Uint16Array(buf.getMappedRange()).set(raw);
+      buf.unmap();
+      this.weights.get(name)?.destroy();
+      this.weights.set(name, buf);
+    }
+    this.sae?.out?.destroy();
+    this.sae = { layer, size, cap: 0 };
+  }
+
+  get saeSize() {
+    return this.sae?.size ?? 0;
   }
 
   async run(req: RunRequest): Promise<Trace> {
@@ -143,6 +162,19 @@ export class GpuEngine {
       edits("pre", l + 1);
     }
 
+    let features: GPUBuffer | undefined;
+    if (req.read?.features) {
+      const sae = this.sae;
+      if (!sae) throw new Error("No sparse autoencoder is attached.");
+      if (sae.cap < a.cap) {
+        sae.out?.destroy();
+        sae.out = dev.createBuffer({ size: a.cap * sae.size * 4, usage: S | GPUBufferUsage.COPY_SRC });
+        sae.cap = a.cap;
+      }
+      features = sae.out!;
+      linear(a.resid, sae.layer * T * d, d, sae.size, "sae", 4, this.dummy, 0, features, 0);
+    }
+
     let lensInfo: { positions: number[]; K: number; targets: number[]; rows: number } | undefined;
     let ids: GPUBuffer | undefined;
     let lps: GPUBuffer | undefined;
@@ -173,6 +205,7 @@ export class GpuEngine {
     if (req.read?.residMid) reads.push(["residMid", a.residMid, L * T * d * 4]);
     if (req.read?.pattern) reads.push(["pattern", a.pattern, L * H * T * T * 4]);
     if (req.read?.z) reads.push(["z", a.z, L * T * d * 4]);
+    if (features) reads.push(["features", features, T * this.sae!.size * 4]);
     if (ids && lps) reads.push(["ids", ids, ids.size], ["lps", lps, lps.size]);
     const staged = reads.map(([key, src, size]) => {
       const dst = dev.createBuffer({ size, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
@@ -190,6 +223,7 @@ export class GpuEngine {
     if (out.residMid) trace.residMid = new Float32Array(out.residMid);
     if (out.pattern) trace.pattern = new Float32Array(out.pattern);
     if (out.z) trace.z = new Float32Array(out.z);
+    if (out.features) trace.features = new Float32Array(out.features);
     if (lensInfo) {
       const { positions, K, targets, rows } = lensInfo;
       const all = new Float32Array(out.lps);

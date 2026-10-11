@@ -10,7 +10,7 @@ let dirty = true;
 let building: Promise<void> | null = null;
 
 async function build() {
-  const result = await Bun.build({ entrypoints: pages.map((p) => join(root, p)), root, sourcemap: "inline" });
+  const result = await Bun.build({ entrypoints: pages.map((p) => join(root, p)), root, sourcemap: "inline", publicPath: "/" });
   if (!result.success) {
     console.error(result.logs.join("\n"));
     return;
@@ -25,7 +25,7 @@ for (const path of ["src", "tests", "index.html"]) watch(join(root, path), { rec
 function staticFile(path: string) {
   const clean = normalize(path).replace(/^(\.\.[/\\])+/, "");
   if (clean.startsWith("/fixtures/")) return Bun.file(join(root, clean));
-  if (clean.startsWith("/model/") || clean === "/head-examples.json") return Bun.file(join(root, "public", clean));
+  if (clean.startsWith("/model/") || clean.startsWith("/features/") || clean === "/head-examples.json") return Bun.file(join(root, "public", clean));
   return null;
 }
 
@@ -37,7 +37,8 @@ const server = Bun.serve({
     if (file) return (await file.exists()) ? new Response(file) : new Response("Not found", { status: 404 });
     if (dirty) await (building ??= build().finally(() => (building = null)));
     const page = path === "/" ? "/index.html" : path.endsWith("/") ? `${path}index.html` : path;
-    const out = files.get(page);
+    // App pages like /attention/9.9 are all index.html, as 404.html makes them on Pages.
+    const out = files.get(page) ?? (/\.[a-z]+$/i.test(path) ? undefined : files.get("/index.html"));
     return out ? new Response(out, { headers: { "Cache-Control": "no-store" } }) : new Response("Not found", { status: 404 });
   },
 });

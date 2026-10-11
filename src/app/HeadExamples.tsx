@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { show } from "./analysis.ts";
 import { done, markDone } from "./progress.ts";
-import { href } from "./route.ts";
+import { href, navigate } from "./route.ts";
 import { TRY_PROMPTS } from "./research.ts";
 
 interface Example {
@@ -16,7 +16,7 @@ interface Example {
 
 let examples: Promise<Record<string, Example[]>> | null = null;
 function loadExamples() {
-  examples ??= fetch(new URL("head-examples.json", location.href))
+  examples ??= fetch(new URL("head-examples.json", document.baseURI))
     .then((r) => r.json())
     .then((d) => d.heads);
   return examples;
@@ -26,7 +26,7 @@ function loadExamples() {
 export function tryHead(id: string, text: string, setPrompt: (t: string) => void) {
   if (!done("attention.predict")) markDone("attention.predict");
   setPrompt(text);
-  location.hash = href({ view: "attention", head: id });
+  navigate(href({ view: "attention", head: id }));
 }
 
 export function HeadExamples({ id, setPrompt, limit = 3 }: { id: string; setPrompt: (t: string) => void; limit?: number }) {

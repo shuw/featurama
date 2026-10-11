@@ -27,7 +27,7 @@ export function MlpCard({ layer, trace, weights, tokenizer, position, activity }
         {notes.length ? (
           <ul>{notes.map((n, i) => <li key={i}><strong>{n.role}.</strong> {n.text} <a className="src" href={SOURCES[n.source].url} target="_blank" rel="noreferrer" title={SOURCES[n.source].name}>source</a></li>)}</ul>
         ) : (
-          <p className="muted">No published study singles out this MLP. Most of what MLPs know is spread across thousands of neurons; Features (exhibit 5) is where we'll look inside.</p>
+          <p className="muted">No published study singles out this MLP. Most of what MLPs know is spread across thousands of neurons. The <a href={href({ view: "features" })}>Features page</a> splits layer 7's numbers into readable features instead.</p>
         )}
       </div>
       <div className="card-buttons">

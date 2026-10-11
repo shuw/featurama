@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  html, body { margin: 0; }
+  body { width: 1200px; height: 630px; background: #fbfaf7; color: #111418; font-family: "IBM Plex Sans", sans-serif; position: relative; overflow: hidden; }
+  .left { position: absolute; left: 80px; top: 120px; width: 600px; }
+  .mark { width: 560px; }
+  .wm-text { font: 700 56px "IBM Plex Mono", monospace; fill: #111418; }
+  .wm-lane { stroke: #2b5cff; stroke-width: 3; fill: none; }
+  .hop { fill: none; stroke: #ff5a1f; stroke-width: 5; stroke-linecap: round; }
+  h1 { margin: 34px 0 0; font-size: 44px; line-height: 1.15; font-weight: 500; letter-spacing: -0.01em; }
+  p { margin: 18px 0 0; font-size: 24px; color: #5b6170; }
+  .grid { position: absolute; right: 80px; top: 95px; display: grid; grid-template-columns: repeat(12, 30px); gap: 4px; }
+  .grid div { width: 30px; height: 30px; border-radius: 5px; }
+  .mlp { margin-top: 6px; }
+  .axis { position: absolute; right: 80px; top: 540px; width: 404px; display: flex; justify-content: space-between; font: 500 16px "IBM Plex Mono", monospace; color: #9aa0ab; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <svg class="mark" viewBox="-6 16 316 118">
+      <path class="wm-lane" d="M0 128H303" />
+      <path class="hop" d="M285.6 84 C 285.6 50, 218.4 50, 218.4 84" />
+      <path class="hop" d="M285.6 84 C 285.6 8, 84 8, 84 84" />
+      <circle cx="285.6" cy="84" r="5.5" fill="#00a88f" />
+      <text x="0" y="118" class="wm-text">featurama</text>
+    </svg>
+    <h1>Take GPT-2 apart,<br>right in your browser.</h1>
+    <p>Attention heads, the logit lens, patching, features and steering, with puzzles.</p>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="axis"><span>layer 0 →</span><span>11</span></div>
+  <script>
+    // A real-looking pattern: a few strong heads, mostly quiet ones, and the MLP row.
+    const strong = { "9.9": 1, "9.6": 0.8, "10.0": 0.85, "5.5": 0.7, "4.11": 0.6, "0.10": 0.75, "11.0": 0.9, "8.6": 0.55, "7.3": 0.45, "1.10": 0.5 };
+    let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const g = document.getElementById("grid");
+    for (let h = 0; h < 12; h++) for (let l = 0; l < 12; l++) {
+      const v = strong[`${l}.${h}`] ?? 0.05 + 0.25 * rnd() ** 2;
+      const d = document.createElement("div");
+      d.style.background = `rgba(255, 90, 31, ${(0.08 + 0.92 * v).toFixed(2)})`;
+      g.appendChild(d);
+    }
+    for (let l = 0; l < 12; l++) {
+      const d = document.createElement("div");
+      d.className = "mlp";
+      d.style.background = `rgba(0, 168, 143, ${(0.25 + 0.6 * rnd()).toFixed(2)})`;
+      g.appendChild(d);
+    }
+  </script>
+</body>
+</html>

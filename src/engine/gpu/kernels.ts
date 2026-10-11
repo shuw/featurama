@@ -113,6 +113,7 @@ fn main(@builtin(workgroup_id) wg: vec3u, @builtin(local_invocation_id) lid: vec
     if (t >= p.T) { break; }
     var y = acc[k] + b;
     if ((p.flags & 1u) != 0u) { y = gelu(y); }
+    if ((p.flags & 4u) != 0u) { y = max(y, vec2f(0.0)); }
     let j = t * p.m + o;
     if ((p.flags & 2u) != 0u) { y += vec2f(res[p.resOff + j], res[p.resOff + j + 1u]); }
     out[p.outOff + j] = y.x;

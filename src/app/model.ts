@@ -12,7 +12,7 @@ export type ModelState =
   | { status: "error"; message: string };
 
 // Where the weights live; a <meta name="featurama-model"> in index.html can point elsewhere.
-const MODEL_BASE = new URL(document.querySelector<HTMLMetaElement>('meta[name="featurama-model"]')?.content ?? "model/gpt2/", location.href).href;
+const MODEL_BASE = new URL(document.querySelector<HTMLMetaElement>('meta[name="featurama-model"]')?.content ?? "model/gpt2/", document.baseURI).href;
 
 let listeners: ((s: ModelState) => void)[] = [];
 let state: ModelState = { status: "loading", progress: null };

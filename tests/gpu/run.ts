@@ -3,7 +3,7 @@
 
 import { GpuEngine } from "../../src/engine/gpu/engine.ts";
 import type { Intervention } from "../../src/engine/hooks.ts";
-import { loadModel } from "../../src/engine/load.ts";
+import { loadModel, loadSae } from "../../src/engine/load.ts";
 
 type Arr = { dtype: "float32" | "int32"; shape: number[]; b64: string };
 const decode = (a: Arr) => {
@@ -112,6 +112,25 @@ async function main() {
     log(`intervention: ${iv.name.padEnd(22)} top token ${c.top ? "matches" : "DIFFERS"}, logprob err ${c.logprobErr.toExponential(1)}`);
     if (!c.top || c.logprobErr > 1e-2) fail(`intervention "${iv.name}" differs from TransformerLens`);
   }
+
+  // The layer-7 sparse autoencoder, against TransformerLens with the original encoder.
+  const fx = await (await fetch("/fixtures/sae.json")).json();
+  const sae = await loadSae(new URL("/model/sae-l7/", location.href).href);
+  engine.attachSae(sae.manifest.layer, sae.manifest.d_sae, sae.encoder, sae.bias);
+  const ft = await engine.run({ tokens: fx.tokens, read: { features: true } });
+  const F = sae.manifest.d_sae;
+  let saeErr = 0;
+  let saeTop = 0;
+  for (let t = 1; t < fx.tokens.length; t++) {
+    const row = ft.features!.subarray(t * F, (t + 1) * F);
+    for (const [i, v] of fx.top[t] as [number, number][]) saeErr = Math.max(saeErr, Math.abs(row[i] - v) / Math.max(1, v));
+    let best = 0;
+    for (let i = 1; i < F; i++) if (row[i] > row[best]) best = i;
+    if (best === fx.top[t][0][0]) saeTop++;
+  }
+  results.sae = { relErr: saeErr, topMatch: saeTop / (fx.tokens.length - 1), ms: ft.ms };
+  log(`sparse autoencoder: strongest feature matches at ${saeTop}/${fx.tokens.length - 1} tokens, worst relative error ${saeErr.toExponential(1)}, ${ft.ms.toFixed(0)} ms`);
+  if (saeErr > 2e-2 || saeTop < fx.tokens.length - 2) fail("sparse autoencoder differs from TransformerLens");
 
   for (const T of [16, 64, 128, 256]) {
     const tokens = Array.from({ length: T }, (_, i) => (i * 7919 + 13) % 50000);

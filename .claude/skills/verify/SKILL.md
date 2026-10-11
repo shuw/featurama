@@ -12,7 +12,9 @@ The app is a static page that runs GPT-2 on WebGPU, so the surface is Chrome.
 3. Drive with playwright-core and system Chrome (Playwright's own WebKit is killed by Santa on Shu's Mac):
    `chromium.launch({ channel: "chrome", args: ["--enable-unsafe-webgpu", "--enable-gpu", "--use-angle=metal"] })`. Headless works with WebGPU.
 4. `node scripts/look.mjs <dir>` walks every page (Machine, Attention predict and reveal, Layers predict, reveal, typing, dark mode) and saves full-page screenshots.
-5. Engine changes: `bun run test:gpu` with the dev server running compares the WebGPU engine with TransformerLens fixtures and prints timings.
+5. Engine changes: `bun run test:gpu` with the dev server running compares the WebGPU engine with TransformerLens fixtures (and the layer-7 sparse autoencoder with fixtures/sae.json) and prints timings.
+6. The sparse autoencoder needs `public/model/sae-l7` (`tools/reference/.venv/bin/python -I tools/reference/sae.py`). Feature data in public/features is committed; regenerate it with tools/reference/features.py only on Apple silicon or a GPU.
+7. Puzzles: every level in src/app/puzzles.ts must stay solvable. After changing one, solve it in the browser at /play/<id>.
 
 Gotchas:
 - A fresh browser context starts in the predict beat; the prompt box is disabled until you pick a layer and press "Run it".

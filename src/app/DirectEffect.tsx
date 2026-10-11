@@ -29,13 +29,13 @@ export function DirectEffect({ trace, weights, tokenizer, vector, position, off 
   useEffect(() => {
     setEffect(null);
     if (off) return;
-    const t = setTimeout(() => setEffect(directEffect(trace, weights, vector(), position, 5, wordTokens(tokenizer, weights.config.d_vocab))), 120);
+    const t = setTimeout(() => setEffect(directEffect(trace, weights, vector(), position, 3, wordTokens(tokenizer, weights.config.d_vocab))), 120);
     return () => clearTimeout(t);
   }, [trace, position, vector, off]);
   const at = position === 0 ? "the start token" : `“${word(tokenizer.piece(trace.tokens[position]))}”`;
   return (
     <div className="effect">
-      <Term tip={GLOSSARY.direct}><span className="card-label">What it pushes the next token toward, at {at}</span></Term>
+      <Term tip={GLOSSARY.direct}><span className="card-label">Pushes the next token, at {at}</span></Term>
       {off ? (
         <p className="muted small">Unplugged: it pushes nothing.</p>
       ) : !effect ? (

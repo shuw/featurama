@@ -2,11 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>{
+  // The site's root, so files load from any page: strip a known page path, or
+  // for an unknown one assume the site sits at / (or /<repo>/ on GitHub Pages).
+  const path = location.pathname;
+  const page = path.match(/^(.*?\/)(?:(?:attention|play)(?:\/[^/]*)?|layers|patching|features)\/?$/);
+  let root = page ? page[1] : path.replace(/[^/]*$/, "");
+  if (!page && root !== "/") root = location.hostname.endsWith(".github.io") ? "/" + path.split("/")[1] + "/" : "/";
+  const base = document.createElement("base");
+  base.href = root;
+  document.currentScript.after(base);
+}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>try { if (localStorage.getItem("featurama-theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch {}</script>
 <title>Featurama</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='white'/%3E%3Cpath d='M23 15C23 3 9 3 9 15' stroke='%23ff5a1f' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='15' r='3.2' fill='%2300a88f'/%3E%3Ctext x='16' y='29' text-anchor='middle' font-family='monospace' font-weight='700' font-size='17' fill='%23111418'%3Ea%3C/text%3E%3C/svg%3E">
 <meta name="description" content="Look inside a real language model: run interpretability experiments on GPT-2 in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Featurama">
+<meta property="og:title" content="Featurama: take GPT-2 apart in your browser">
+<meta property="og:description" content="Attention heads, the logit lens, patching, features and steering, with puzzles. GPT-2 runs on your own GPU.">
+<meta property="og:image" content="https://shuw.github.io/featurama/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">

@@ -80,3 +80,22 @@ Each head also shows the passages where it works hardest (`public/head-examples.
 - Head and MLP cards show what that part's output, on its own, pushes the next token toward and away from: its vector at the chosen token through the final LayerNorm (with that position's real scale) and the unembedding. Computed in the browser in about 40 ms; it ignores what later layers do with the vector. Lists show whole words and numbers only, leaving out word fragments and GPT-2's glitch tokens such as " RandomRedditor", which crowd the extremes. On the Mary-and-John sentence, name mover 9.9 pushes toward " Mary" and copy-suppression head 10.7 away from it; in "from 1732 to 17", MLP 10 pushes toward later years, as the greater-than study found.
 - A prompt ending in spaces is run without them, and suggestions are limited to tokens that start with those spaces. Accepting one adds the rest of the token. GPT-2 attaches spaces to the following word, so a bare trailing space is text it rarely saw.
 - The grids no longer carry letter badges. Highlight chips outline heads known to do one job, and pointing at a square shows its label.
+
+## Attention views (2026-10-11)
+
+- Arrows point from the selected token to what it looks at. Resting attention on the start token stays as a thin dashed arrow; pointing at another token previews its arrows faintly.
+- The head picker is a heat map of how much each head adds at the selected token, with the current head boxed.
+- "All heads at once" combines every head's attention, leaving out the start token and weighting each head by how much it adds at that token. It shows where information was gathered from, not what caused the prediction; the page says so.
+
+## Addresses (2026-10-11)
+
+- Pages have real paths (/featurama/attention/9.9) instead of #/ routes, and old #/ links redirect. GitHub Pages has no server routing, so the build copies index.html to 404.html. A deep link opened fresh therefore arrives with a 404 status, which browsers log but people don't see.
+- An edited prompt goes in the address as ?p=, so a link shares it. A shared link skips the opening questions on Attention and Layers and goes straight to the shared prompt.
+
+## Features and steering (2026-10-11)
+
+- Features come from Joseph Bloom's sparse autoencoder on the stream entering layer 7 (24,576 features, MIT, pinned revision). The centring TransformerLens applies and the decoder bias are folded into the encoder, so the browser applies it to GPT-2's raw stream; the GPU result matches TransformerLens to 0.3%.
+- The encoder (38 MB) loads when the Features page first opens. Steering directions load 256 at a time, when used.
+- Each feature's frequency, strongest passages and pushed words were measured on 3 million WikiText-103 tokens by tools/reference/features.py (needs a GPU or Apple silicon; output committed, not rerun in CI). Neuronpedia's explanations aren't used: their licence isn't stated.
+- Most features are named by the tokens they fire on, plus the words they push toward. A handful are hand-labelled after reading their passages.
+- Steering adds the feature's direction at every token but the start token, including newly written ones. Strengths of 30–60 change the topic; above about 90, GPT-2 loses grammar. The two versions share their dice rolls, so differences come from the steering.

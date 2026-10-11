@@ -23,14 +23,18 @@ jobs:
         with:
           bun-version: 1.2.4
       - run: bun install --frozen-lockfile
-      # The weights aren't in git: download GPT-2 from Hugging Face and convert it.
+      # The weights aren't in git: download GPT-2 and the layer-7 sparse
+      # autoencoder from Hugging Face and convert them.
       - run: |
           python3 -m venv .venv-model
           .venv-model/bin/pip install --quiet huggingface-hub==1.33.0 safetensors==0.8.0 numpy==2.5.3
           .venv-model/bin/python -I tools/reference/convert.py
+          .venv-model/bin/python -I tools/reference/sae.py
       - run: bunx tsc --noEmit
       - run: bun test tests/tokenizer.test.ts
       - run: bun run build
+        env:
+          PUBLIC_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: dist

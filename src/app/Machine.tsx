@@ -20,7 +20,7 @@ import { href } from "./route.ts";
 import { Term, Tip } from "./Tip.tsx";
 import { ATLAS_SOURCE, habits } from "./atlas.ts";
 import { HeadExamples } from "./HeadExamples.tsx";
-import { label } from "./research.ts";
+import { label, research } from "./research.ts";
 import { ResearchNotes } from "./ResearchNotes.tsx";
 import { useRun } from "./useRun.ts";
 
@@ -29,8 +29,7 @@ const EXHIBITS = [
   { n: 2, name: "Attention", text: "Who looks at whom", route: href({ view: "attention" }) },
   { n: 3, name: "Layers", text: "Watch the guess take shape", route: href({ view: "layers" }) },
   { n: 4, name: "Patching", text: "Swap activations until the answer flips", route: href({ view: "patching" }) },
-  { n: 5, name: "Features", text: "Concepts inside the numbers" },
-  { n: 6, name: "Steering", text: "Turn a concept up and watch the writing bend" },
+  { n: 5, name: "Features", text: "Concepts inside the numbers, and steering with them", route: href({ view: "features" }) },
 ];
 
 // The classic experiment: switch off the heads that copy the name.
@@ -193,7 +192,7 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
                   </ul>
                   <p className="muted small">Small changes are normal: when a head is switched off, others often step in. Researchers call this self-repair.</p>
                   {unKey === NAME_MOVERS.join(",") && prompt === IOI_PROMPT && (
-                    <button className="secondary" onClick={() => setUnplugged([...NAME_MOVERS, ...BACKUPS])}>Now unplug the backups (B) too</button>
+                    <button className="secondary" onClick={() => setUnplugged([...NAME_MOVERS, ...BACKUPS])}>Now unplug the backup name movers too</button>
                   )}
                 </>
               )}
@@ -205,27 +204,32 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
           ) : focused ? (
             <div className="card head-card">
               <div className="head-name">Head {focus}</div>
-              <p className="muted">Layer {focus!.split(".")[0]}, head {focus!.split(".")[1]}. {isOff(focus!) ? "Unplugged: it adds nothing." : `At “${lastWord}” it adds ${focused.activity} as much as the busiest head.`}</p>
-              {focused.jobs.map((j) => <p key={j.name}><span className="badge">{j.letter}</span> <strong>{j.name}.</strong> {j.text} <Term tip={GLOSSARY.score}>Tested just now: {j.score}</Term>.</p>)}
+              <p className="head-gist">{label(focus!) ?? habits(focus!)[0]}</p>
+              {research(focus!).circuits.length > 0 && (
+                <div className="role-tags">{research(focus!).circuits.map((c) => <span key={c.role} className="role-tag" title={c.text}>{c.role}</span>)}</div>
+              )}
+              <p className="muted small">{isOff(focus!) ? "Unplugged: it adds nothing." : `At “${lastWord}” it adds ${focused.activity} as much as the busiest head.`}</p>
               {result && current && <DirectEffect trace={result.trace} weights={weights} tokenizer={tokenizer} vector={headVector} position={pos} off={isOff(focus!)} />}
-              <ResearchNotes id={focus!} />
-              <div className="habits">
-                <Term tip={ATLAS_SOURCE}><span className="card-label">Measured on Wikipedia text</span></Term>
-                <ul>{habits(focus!).map((h) => <li key={h}>{h}</li>)}</ul>
-              </div>
-              <HeadExamples id={focus!} setPrompt={setPrompt} limit={2} />
               <div className="card-buttons">
                 <button className={isOff(focus!) ? "secondary" : "primary"} onClick={() => toggle(focus!)}>{isOff(focus!) ? "Plug back in" : "Unplug"}</button>
                 <a className="secondary" href={href({ view: "attention", head: focus! })}>Open in Attention →</a>
               </div>
+              <details className="more">
+                <summary>More about head {focus}</summary>
+                <ResearchNotes id={focus!} />
+                {focused.jobs.map((j) => <p key={j.name}><strong>{j.name}.</strong> {j.text} <Term tip={GLOSSARY.score}>Tested just now: {j.score}</Term>.</p>)}
+                <div className="habits">
+                  <Term tip={ATLAS_SOURCE}><span className="card-label">Measured on Wikipedia text</span></Term>
+                  <ul>{habits(focus!).map((h) => <li key={h}>{h}</li>)}</ul>
+                </div>
+                <HeadExamples id={focus!} setPrompt={setPrompt} limit={2} />
+              </details>
             </div>
           ) : (
             <div className="card">
               <div className="card-label">How to read this</div>
-              <p>Columns are the 12 layers, run left to right. Each square in a column is one of that layer's attention heads, and the teal row is its MLP. Head 9.9 is layer 9, head 9.</p>
-              <p className="muted">Head numbers are just labels: head 3 of layer 2 and head 3 of layer 7 have nothing in common. Read down a column, not across a row.</p>
-              <p className="muted">Use the Highlight chips above the grid to outline heads known to do a particular job.</p>
-              <p className="muted">Click a head to learn about it and to unplug it, or an MLP square to see what it pushes toward.</p>
+              <p>Columns are the 12 layers, left to right. Each square is an attention head (9.9 is layer 9, head 9), and the teal row is each layer's MLP. Brighter squares add more at the last token.</p>
+              <p className="muted">Click any square to learn what it does.</p>
               <button className="secondary" onClick={tryNameMovers}>Try it: unplug the name movers</button>
             </div>
           )}

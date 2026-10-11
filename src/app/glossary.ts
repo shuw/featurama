@@ -22,5 +22,8 @@ export const GLOSSARY = {
   shuffle: "Try another starting phrase",
   direct: "What this part's output, on its own, does to GPT-2's next-token scores at this token: the whole words and numbers it makes most and least likely. Later layers can change the final outcome.",
   highlight: "Outline the heads known to do one kind of job.",
+  sae: "A sparse autoencoder is a small network trained to rewrite each token's 768 numbers as a few active features out of 24,576, so that each feature tends to mean one thing. This one was trained by Joseph Bloom on web text (MIT licence).",
+  feature: "A direction in GPT-2's 768 numbers that a sparse autoencoder found. Each tends to fire on one kind of thing, such as rain, the word “king” or a team sport. Nobody told GPT-2 about these; they were found afterwards.",
+  featurePush: "What adding this feature's direction does to the next-token scores on its own, ignoring later layers: the whole words it makes most and least likely.",
   tab: "Press Tab to add GPT-2's top guess",
 } as const;
