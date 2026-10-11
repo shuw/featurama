@@ -54,3 +54,7 @@ Joseph Bloom's residual SAEs (MIT, plain ReLU, so a subset of features gives exa
 The Machine view marks heads with known jobs. Previous-token, duplicate-token and induction heads are measured in the learner's browser at load, on 20 random tokens shown twice, so a mark always reflects this model. The measured heads match the literature: 4.11 is a previous-token head (score 1.00), and 5.1, 5.5, 6.9, 7.2 and 7.10 are induction heads (0.82–0.94). Roles that need more than attention patterns to find (the IOI name movers, negative name movers and S-inhibition heads) are labelled with their source, Wang et al. 2022.
 
 Head activity in the Machine view is the length of each head's output vector at the last token, after the output projection. That needs each layer's `hook_z`, which the engine now keeps and the GPU check compares with TransformerLens.
+
+## Wordmark: "Hop" (2026-10-10)
+
+The wordmark is "featurama" in IBM Plex Mono with the last "a" sending attention arcs back to the earlier two, over a blue residual line: what an induction head does with a repeated token. It draws itself once when the page loads, replays on hover, and loops on the loading screen. Shu chose it from five concepts on the look board.

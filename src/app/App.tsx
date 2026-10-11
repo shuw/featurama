@@ -4,6 +4,7 @@ import { Layers } from "./Layers.tsx";
 import { Machine } from "./Machine.tsx";
 import { useModel } from "./model.ts";
 import { href, useRoute } from "./route.ts";
+import { Wordmark } from "./Wordmark.tsx";
 
 type Theme = "system" | "light" | "dark";
 
@@ -45,8 +46,7 @@ export function App() {
       <header className="top">
         <div className="top-inner">
           <a className="brand" href={href({ view: "machine" })} aria-label="Featurama home">
-            <Mark />
-            <span>featurama</span>
+            <Wordmark height={44} label="featurama" />
           </a>
           <nav className="tabs" aria-label="Sections">
             {tab("machine", "Machine")}
@@ -74,7 +74,7 @@ export function App() {
           )
         ) : (
           <section className="hero">
-            <HeroArt />
+            <Wordmark height={150} loop />
             {model.status === "error" ? (
               <>
                 <h1>GPT-2 couldn't start</h1>
@@ -98,16 +98,6 @@ export function App() {
   );
 }
 
-function Mark() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 28 28" aria-hidden="true">
-      <path d="M0 9 H28 M0 19 H28" className="mark-lane" />
-      <path d="M4 9 C 16 9, 12 19, 24 19" className="mark-arc" />
-      <circle cx="24" cy="19" r="3.5" className="mark-dot" />
-    </svg>
-  );
-}
-
 function ThemeIcon({ theme }: { theme: Theme }) {
   if (theme === "light")
     return (
@@ -126,23 +116,6 @@ function ThemeIcon({ theme }: { theme: Theme }) {
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" className="icon">
       <circle cx="10" cy="10" r="7" />
       <path d="M10 3a7 7 0 0 1 0 14Z" className="icon-fill" />
-    </svg>
-  );
-}
-
-// Token lines with attention arcs drawing themselves while the model loads.
-function HeroArt() {
-  const ys = [20, 44, 68, 92];
-  return (
-    <svg className="hero-art" viewBox="0 0 560 112" aria-hidden="true">
-      {ys.map((y, i) => <path key={i} d={`M0 ${y} H560`} className="hero-lane" style={{ animationDelay: `${i * 120}ms` }} />)}
-      {[0, 1, 2, 3, 4, 5].map((k) => {
-        const x = 70 + k * 80;
-        const from = ys[k % 3];
-        const to = ys[3];
-        return <path key={k} d={`M${x} ${from} C ${x + 34} ${from}, ${x + 26} ${to}, ${x + 60} ${to}`} className="hero-arc" style={{ animationDelay: `${300 + k * 160}ms` }} />;
-      })}
-      {[0, 1, 2, 3, 4, 5].map((k) => <circle key={k} cx={70 + k * 80 + 70} cy={ys[3]} r={3 + (k % 3)} className="hero-dot" style={{ animationDelay: `${500 + k * 160}ms` }} />)}
     </svg>
   );
 }
