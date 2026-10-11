@@ -6,7 +6,7 @@
     "dev": "bun scripts/serve.ts",
     "check": "tsc --noEmit && bun test",
     "test:gpu": "node scripts/gpu-test.mjs",
-    "build": "rm -rf dist && bun build ./index.html --outdir dist --minify",
+    "build": "rm -rf dist && bun build ./index.html --outdir dist --minify && cp -R public/. dist/",
     "model": "tools/reference/.venv/bin/python -I tools/reference/convert.py",
     "fixtures": "tools/reference/.venv/bin/python -I tools/reference/fixtures.py"
   },

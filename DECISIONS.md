@@ -58,3 +58,17 @@ Head activity in the Machine view is the length of each head's output vector at 
 ## Wordmark: "Hop" (2026-10-10)
 
 The wordmark is "featurama" in IBM Plex Mono with the last "a" sending attention arcs back to the earlier two, over a blue residual line: what an induction head does with a repeated token. It draws itself once when the page loads, replays on hover, and loops on the loading screen. Shu chose it from five concepts on the look board.
+
+## Interventions in the interface (2026-10-11)
+
+- **Unplugging** a head sets its output to zero (zero ablation), on every token. With the three name movers unplugged, GPT-2 still answers "Mary" (68% → 50%): backup heads take over, which the IOI paper calls self-repair. Unplugging the eight backup name movers as well takes "Mary" to 2%.
+- **Patching** copies A's residual stream at one (layer, token) into B, before that layer. A square's colour is how far B's answer moves toward A's, measured on the difference between the two answers' log-probabilities: 0 means unchanged, 1 means as sure as A. The default pair reproduces the published picture: the deciding information sits on the second name until layer 8 and on the last token from layer 9.
+- **Let it write** samples from the top 40 tokens at three temperatures (0, 0.8, 1.3). At 0 it shows GPT-2's habit of repeating itself.
+- **You vs GPT-2** uses 31 everyday sentences whose answers are single GPT-2 tokens, so both players are scored on the same token.
+
+## Explaining every head (2026-10-11)
+
+Each head's card combines two kinds of evidence, kept apart so readers can tell them apart:
+
+- **What researchers found**, reworded in plain English with a link to the source. Most labels come from a study that inspected every head with sparse autoencoders (Krzyzanowski, Kissane, Conmy & Nanda 2024; republished CC BY 4.0 in arXiv 2406.17759). Six heads have no description there and two have no row, and the card says so. Task-specific roles come from the IOI, greater-than, copy-suppression, sequence-continuation, acronym and gendered-pronoun studies; the last is a hackathon report and is labelled as one.
+- **What we measured**, from `tools/reference/heads.py` on 300 paragraphs of WikiText-103 (CC BY-SA): how much attention rests on the start token, goes to the previous token or to itself, how far back it reaches, and which whole words draw it. A copying score from the head's weights says whether it raises or lowers the odds of the tokens it looks at, using GPT-2's effective token embedding (the embedding plus layer 0's MLP). With the raw embedding the score called copy-suppression head 10.7 a copier, so it isn't used. It is only shown for layers 6 and up.

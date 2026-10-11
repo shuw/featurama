@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 
-export type Route = { view: "machine" } | { view: "attention"; head?: string } | { view: "layers" };
+export type Route = { view: "machine" } | { view: "attention"; head?: string } | { view: "layers" } | { view: "patching" } | { view: "play" };
 
 function parse(hash: string): Route {
   const [view, arg] = hash.replace(/^#\/?/, "").split("/");
   if (view === "attention") return { view, head: arg && /^\d+\.\d+$/.test(arg) ? arg : undefined };
-  if (view === "layers") return { view };
+  if (view === "layers" || view === "patching" || view === "play") return { view };
   return { view: "machine" };
 }
 

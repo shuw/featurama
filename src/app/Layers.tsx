@@ -1,6 +1,6 @@
 // Exhibit 3: the logit lens. Predict, poke, explain, challenge.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GpuEngine } from "../engine/gpu/engine.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
 import { analyse, predictions, readingLabel, word, type Analysis } from "./analysis.ts";
@@ -8,17 +8,21 @@ import { Beats } from "./Beats.tsx";
 import { runPrompt, tokenize } from "./model.ts";
 import { done, markDone } from "./progress.ts";
 import { PromptBox } from "./PromptBox.tsx";
+import type { Writer } from "./useWriter.ts";
 import { Ring } from "./Ring.tsx";
 import { Signal } from "./Signal.tsx";
+import { GLOSSARY } from "./glossary.ts";
+import { Term } from "./Tip.tsx";
 import { useRun } from "./useRun.ts";
 
-const DEFAULT = "The first president of the United States was George";
+// The predict beat asks about this sentence; afterwards the page uses the shared prompt.
+const PREDICT_PROMPT = "The first president of the United States was George";
 
 const CHALLENGES = [
   {
     id: "layers.flipflop",
     title: "Indecisive",
-    text: "Find a prompt where the top guess changes at least 4 times, through at least 3 different words.",
+    text: "Find a prompt where the top guess changes at least 4 times, among at least 3 different words.",
     check: (a: Analysis) => a.changes >= 4 && a.distinct >= 3,
   },
   {
@@ -33,19 +37,24 @@ interface Props {
   engine: GpuEngine;
   tokenizer: Tokenizer;
   guide: boolean;
+  prompt: string;
+  setPrompt: (text: string) => void;
+  shuffle: () => void;
+  writer: Writer;
 }
 
-export function Layers({ engine, tokenizer, guide }: Props) {
+export function Layers({ engine, tokenizer, guide, prompt, setPrompt, shuffle, writer }: Props) {
   const L = engine.config.n_layers;
-  const [text, setText] = useState(DEFAULT);
-  const [tokens, setTokens] = useState(() => tokenize(tokenizer, DEFAULT));
+  const [override, setOverride] = useState<string | null>(() => (done("layers.predict") ? null : PREDICT_PROMPT));
+  const text = override ?? prompt;
+  const tokens = useMemo(() => tokenize(tokenizer, text), [tokenizer, text]);
   const [position, setPosition] = useState<number | null>(null); // null follows the last token
   const [predicting, setPredicting] = useState(!done("layers.predict"));
   const [guess, setGuess] = useState<number | null>(null);
   const [defaultAnswer, setDefaultAnswer] = useState<Analysis | null>(null);
   const [, rerender] = useState(0);
   const run = useCallback((t: number[]) => runPrompt(engine, t), [engine]);
-  const { result, error } = useRun(tokens, run);
+  const { result, error, version } = useRun(tokens, run);
 
   const shown = result?.trace.tokens ?? tokens;
   const last = shown.length - 1;
@@ -55,8 +64,8 @@ export function Layers({ engine, tokenizer, guide }: Props) {
 
   useEffect(() => {
     if (!analysis || !current) return;
-    if (text === DEFAULT && pos === last && !defaultAnswer) setDefaultAnswer(analysis);
-    if (text !== DEFAULT && pos === last && !predicting) {
+    if (text === PREDICT_PROMPT && pos === last && !defaultAnswer) setDefaultAnswer(analysis);
+    if (text !== PREDICT_PROMPT && pos === last && !predicting) {
       for (const c of CHALLENGES) if (c.check(analysis) && !done(c.id)) {
         markDone(c.id);
         rerender((n) => n + 1);
@@ -65,8 +74,8 @@ export function Layers({ engine, tokenizer, guide }: Props) {
   });
 
   const edit = (value: string) => {
-    setText(value);
-    setTokens(tokenize(tokenizer, value));
+    setOverride(null);
+    setPrompt(value);
     setPosition(null);
   };
 
@@ -82,21 +91,21 @@ export function Layers({ engine, tokenizer, guide }: Props) {
       <header className="page-head">
         <div className="eyebrow">Exhibit 3 · Layers</div>
         <h1>Watch the guess take shape</h1>
-        <p className="dek">GPT-2 builds its answer one layer at a time. The logit lens lets you read its best guess part-way through.</p>
+        <p className="dek">GPT-2 builds its answer one layer at a time. The <Term tip={GLOSSARY.lens}>logit lens</Term> lets you read its best guess part-way through.</p>
       </header>
 
-      <PromptBox value={text} onChange={edit} tokens={tokens} tokenizer={tokenizer} next={predicting || !result ? null : predictions(result.trace, L, tokenizer)}
+      <PromptBox autoFocus writer={writer} onShuffle={() => { setOverride(null); shuffle(); }} value={text} onChange={edit} tokens={tokens} tokenizer={tokenizer} next={result ? predictions(result.trace, L, tokenizer) : null}
         stale={!current} disabled={predicting} disabledNote="Make your guess below first" />
 
       <div className={!current && result ? "stage stale" : "stage"}>
-        <Signal layers={L} pieces={pieces} analysis={predicting ? null : analysis} onSelect={setPosition} />
+        <Signal layers={L} pieces={pieces} analysis={predicting ? null : analysis} onSelect={setPosition} version={version} />
       </div>
       {error && <p className="error">{error}</p>}
 
       <Beats
         guide={guide && (predicting
-          ? "Guess first, then run it. Being wrong is half the fun: it tells you what to look at."
-          : "Type your own prompt and watch the lens update. Click a word on the left to read the lens there; hover a lens square for its top five guesses.")}
+          ? "Guess first, then run it. A wrong guess is useful: it tells you what to look at."
+          : "Type your own prompt and watch the lens update. Click a token on the left to read the lens there, and point at a lens square for its top five guesses.")}
         side={!predicting && (
           <section className="card">
             <div className="card-label">Challenges</div>
@@ -114,7 +123,7 @@ export function Layers({ engine, tokenizer, guide }: Props) {
             <div className="card-label">Predict</div>
             {defaultAnswer ? (
               <>
-                <p className="question">GPT-2 will finish this prompt with “{word(defaultAnswer.final)}”. Reading its mind layer by layer, after which layer does that guess take the lead for good?</p>
+                <p className="question">GPT-2 will finish this prompt with “{word(defaultAnswer.final)}”. If you read its best guess after each layer, after which layer does “{word(defaultAnswer.final)}” take the lead for good?</p>
                 <div className="chips" role="group" aria-label="Your guess">
                   {Array.from({ length: L + 1 }, (_, k) => (
                     <button key={k} className={guess === k ? "chip chip-on" : "chip"} onClick={() => setGuess(k)} aria-pressed={guess === k}>
@@ -133,7 +142,7 @@ export function Layers({ engine, tokenizer, guide }: Props) {
           </section>
         ) : (
           <>
-            {guess !== null && defaultAnswer && text === DEFAULT && (
+            {guess !== null && defaultAnswer && text === PREDICT_PROMPT && (
               <section className="card card-result">
                 <div className="card-label">Your guess</div>
                 <p>{verdict(guess, defaultAnswer)}</p>
@@ -142,8 +151,8 @@ export function Layers({ engine, tokenizer, guide }: Props) {
             {analysis && (
               <section className="card">
                 <div className="card-label">What you're seeing</div>
-                <p>Each token rides its own line through the model, carrying a running summary that researchers call the <strong>residual stream</strong>. Every layer reads that summary and adds to it: attention (orange arcs) pulls in information from earlier tokens, and the MLP (teal dots) works on each token by itself. Grey dashes are attention parked on the start token, where heads rest when they have nothing to fetch.</p>
-                <p>The <strong>logit lens</strong> asks what the model would say if it had to answer right now. It takes the summary part-way through and applies the model's own final step to it early. Here, for “{word(analysis.pieces[analysis.position])}”, the final answer “{word(analysis.final)}” takes the lead for good {readingLabel(analysis.settle)}{analysis.changes > 0 ? `, and the top guess changes ${analysis.changes} time${analysis.changes === 1 ? "" : "s"} along the way` : ""}.</p>
+                <p>Each token travels on its own line, carrying a running summary that researchers call the <Term tip={GLOSSARY.residual}><strong>residual stream</strong></Term>. Every layer reads the summary and adds to it. <Term tip={GLOSSARY.head}>Attention</Term> (orange arcs) brings in information from earlier tokens, and the <Term tip={GLOSSARY.mlp}>MLP</Term> (teal dots) works on each token by itself. Grey dashes are attention resting on the <Term tip={GLOSSARY.start}>start token</Term>.</p>
+                <p>The <Term tip={GLOSSARY.lens}><strong>logit lens</strong></Term> asks what the model would say if it had to answer right now. It takes the summary part-way through and runs the model's final step on it early. Here, for “{word(analysis.pieces[analysis.position])}”, the final answer “{word(analysis.final)}” takes the lead for good {readingLabel(analysis.settle)}{analysis.changes > 0 ? `, and the top guess changes ${analysis.changes} time${analysis.changes === 1 ? "" : "s"} along the way` : ""}.</p>
                 <p className="caveat">The lens is a rough window. Early layers were never trained to be read this way, so their guesses are mostly noise, and some knowledge stays hidden from it until late.</p>
               </section>
             )}

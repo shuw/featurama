@@ -12,9 +12,9 @@ page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 const shot = (name) => page.screenshot({ path: `${out}/${name}.png`, fullPage: true });
 const type = async (text) => {
-  const input = page.locator(".promptbox-input input");
+  const input = page.locator(".promptbox-input textarea");
   await input.focus();
-  await input.press("End");
+  await input.evaluate((el) => el.setSelectionRange(el.value.length, el.value.length));
   await input.pressSequentially(text, { delay: 30 });
   await page.waitForTimeout(600);
 };

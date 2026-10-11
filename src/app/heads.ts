@@ -14,25 +14,31 @@ export interface HeadJobs {
 
 export const JOB_THRESHOLD: Record<Job, number> = { previous: 0.5, induction: 0.6, duplicate: 0.4 };
 
-export const JOB_TEXT: Record<Job, { name: string; text: string }> = {
-  previous: { name: "Previous-token head", text: "Each word looks at the word just before it." },
-  induction: { name: "Induction head", text: "Spots a repeat and looks at what came after the earlier copy, to predict it comes again." },
-  duplicate: { name: "Duplicate-token head", text: "Looks back at earlier copies of the same word." },
+// Each job has a one-letter badge for the head grids.
+export const JOB_TEXT: Record<Job, { letter: string; name: string; text: string }> = {
+  previous: { letter: "P", name: "Previous-token head", text: "Looks at the token just before." },
+  duplicate: { letter: "D", name: "Duplicate-token head", text: "Looks back at earlier copies of the same token." },
+  induction: { letter: "I", name: "Induction head", text: "When a token has appeared before, it looks at what came next last time, so GPT-2 can predict the same again." },
 };
 
 // Roles found by Wang et al. (2022), "Interpretability in the Wild", for
 // sentences like "When Mary and John went to the store, John gave a drink to".
-export const IOI_ROLES: Record<string, string> = {
-  "9.9": "Name mover: copies the right name toward the answer.",
-  "9.6": "Name mover: copies the right name toward the answer.",
-  "10.0": "Name mover: copies the right name toward the answer.",
-  "10.7": "Negative name mover: pushes against the name it looks at.",
-  "11.10": "Negative name mover: pushes against the name it looks at.",
-  "7.3": "S-inhibition: tells the name movers which name to ignore.",
-  "7.9": "S-inhibition: tells the name movers which name to ignore.",
-  "8.6": "S-inhibition: tells the name movers which name to ignore.",
-  "8.10": "S-inhibition: tells the name movers which name to ignore.",
+export type Role = "N" | "B" | "S" | "−N";
+export const ROLES: Record<Role, { letter: Role; name: string; text: string }> = {
+  N: { letter: "N", name: "Name mover", text: "Copies the right name into the answer." },
+  B: { letter: "B", name: "Backup name mover", text: "Takes over copying the name when the name movers are switched off." },
+  S: { letter: "S", name: "Name inhibitor", text: "Tells the name movers which name to skip (the paper calls this S-inhibition)." },
+  "−N": { letter: "−N", name: "Negative name mover", text: "Pushes the answer away from the name it looks at, which keeps GPT-2 from being overconfident." },
 };
+export const IOI_ROLE: Record<string, Role> = {
+  "9.9": "N", "9.6": "N", "10.0": "N",
+  "9.0": "B", "9.7": "B", "10.1": "B", "10.2": "B", "10.6": "B", "10.10": "B", "11.2": "B", "11.9": "B",
+  "10.7": "−N", "11.10": "−N",
+  "7.3": "S", "7.9": "S", "8.6": "S", "8.10": "S",
+};
+export const IOI_ROLES: Record<string, string> = Object.fromEntries(
+  Object.entries(IOI_ROLE).map(([id, r]) => [id, `${ROLES[r].name}: ${ROLES[r].text.charAt(0).toLowerCase()}${ROLES[r].text.slice(1)}`]),
+);
 export const IOI_SOURCE = "Wang et al. 2022, Interpretability in the Wild";
 
 // Scores every head on a sequence of 20 random tokens shown twice: the

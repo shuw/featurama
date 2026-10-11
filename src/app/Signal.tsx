@@ -1,7 +1,7 @@
 // The Signal view: one line per token, attention arcs into the chosen token,
 // MLP writes as dots, and the logit lens along the bottom.
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { readingLabel, show, type Analysis } from "./analysis.ts";
 
 const LABEL_W = 132;
@@ -17,9 +17,14 @@ interface Props {
   pieces: string[];
   analysis: Analysis | null; // null while the learner is still predicting
   onSelect: (position: number) => void;
+  version: number; // changes with every new run, to replay the pulse
 }
 
-export function Signal({ layers, pieces, analysis, onSelect }: Props) {
+// Each new run sweeps across the layers in the order the model computes
+// them, and the lens squares flip like a departure board when they change.
+const STEP = 45; // ms per layer
+
+export function Signal({ layers, pieces, analysis, onSelect, version }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const T = pieces.length;
   // A fixed line height up to 16 tokens, so typing adds lines instead of rescaling the drawing.
@@ -40,37 +45,45 @@ export function Signal({ layers, pieces, analysis, onSelect }: Props) {
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={describe(pieces, analysis)}>
         {Array.from({ length: layers }, (_, l) => (
           <g key={l}>
-            <text x={colX(l) + 2} y={16} className="axis">{l}</text>
+            <text x={colX(l) + 2} y={16} className="axis"><title>{`Layer ${l}`}</title>{l}</text>
             <line x1={colX(l)} x2={colX(l) + COL_W - 6} y1={22} y2={22} className="rule" />
           </g>
         ))}
-        <text x={colX(layers) + 18} y={16} className="axis">next token</text>
+        <text x={colX(layers) + 18} y={16} className="axis"><title>What GPT-2 predicts after each token</title>next token</text>
 
         {pieces.map((_, t) => (
           <line key={t} x1={LABEL_W - 4} x2={colX(layers) + 6} y1={y(t)} y2={y(t)} className={t === pos ? "lane lane-on" : "lane"} />
         ))}
         <line x1={colX(layers) + 6} x2={colX(layers) + 6} y1={TOP} y2={lanesBottom} className="final-norm" />
 
+        {analysis && <rect key={`sweep-${version}`} className="sweep" x={LABEL_W - 12} y={TOP} width={24} height={lanesBottom - TOP}
+          style={{ "--dist": `${colX(layers) - LABEL_W + 12}px`, animationDuration: `${layers * STEP + 200}ms` } as CSSProperties} />}
+        <g key={`arcs-${version}`}>
         {analysis?.arcs.map((a, i) => {
           const x0 = colX(a.layer) + 2;
           const x1 = x0 + ATTN_W - 4;
           return (
             <path key={i} d={`M${x0} ${y(a.from)} C ${x0 + 30} ${y(a.from)}, ${x1 - 30} ${y(pos)}, ${x1} ${y(pos)}`}
-              className={a.from === 0 ? "arc arc-start" : "arc"} strokeWidth={1 + 5 * a.weight} opacity={a.from === 0 ? 0.5 : 0.3 + 0.7 * a.weight} />
+              className={a.from === 0 ? "arc arc-start pulse-in" : "arc pulse-in"} strokeWidth={1 + 5 * a.weight} opacity={a.from === 0 ? 0.5 : 0.3 + 0.7 * a.weight}
+              style={{ animationDelay: `${a.layer * STEP}ms` }} />
           );
         })}
+        </g>
 
+        <g key={`mlp-${version}`}>
         {analysis?.mlp.map((row, l) =>
           row.map((v, t) => (
-            <circle key={`${l}-${t}`} cx={colX(l) + ATTN_W + MLP_W / 2} cy={y(t)} r={1.5 + (laneH / 2.6) * Math.sqrt(v)} className={t === pos ? "mlp mlp-on" : "mlp"} />
+            <circle key={`${l}-${t}`} cx={colX(l) + ATTN_W + MLP_W / 2} cy={y(t)} r={1.5 + (laneH / 2.6) * Math.sqrt(v)} className={t === pos ? "mlp mlp-on pop-in" : "mlp pop-in"}
+              style={{ animationDelay: `${l * STEP + STEP / 2}ms` }} />
           )),
         )}
+        </g>
 
         {pieces.map((p, t) => (
           <g key={t} className="token" onClick={() => analysis && onSelect(t)} role="button" tabIndex={analysis ? 0 : -1}
             aria-label={`Look at token ${t}: ${show(p)}`} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && analysis && onSelect(t)}>
             <rect x={0} y={y(t) - laneH / 2} width={LABEL_W - 8} height={laneH} className="hit" />
-            <text x={LABEL_W - 10} y={y(t) + 4} textAnchor="end" className={t === pos ? "piece piece-on" : t === 0 ? "piece piece-start" : "piece"}>{show(p)}</text>
+            <text x={LABEL_W - 10} y={y(t) + 4} textAnchor="end" className={t === pos ? "piece piece-on" : t === 0 ? "piece piece-start" : "piece"}>{t === 0 && <title>GPT-2's start token, put in front of every prompt</title>}{show(p)}</text>
           </g>
         ))}
 
@@ -80,7 +93,7 @@ export function Signal({ layers, pieces, analysis, onSelect }: Props) {
           </text>
         ))}
 
-        <text x={8} y={lensTop - 8} className="axis">logit lens on “{show(pieces[pos])}”</text>
+        <text x={8} y={lensTop - 8} className="axis"><title>The model's best guess after each layer, read with the logit lens</title>logit lens on “{show(pieces[pos])}”</text>
         {Array.from({ length: layers + 1 }, (_, k) => {
           const r = analysis?.lens[k];
           const long = r ? show(r.piece).length > 8 : false;
@@ -89,7 +102,8 @@ export function Signal({ layers, pieces, analysis, onSelect }: Props) {
               <rect x={lensX(k)} y={lensTop} width={lensW(k)} height={LENS_H} className={r && r.piece === analysis!.final ? "cell cell-final" : "cell"} />
               {r && <rect x={lensX(k)} y={lensTop + LENS_H * (1 - r.p)} width={lensW(k)} height={LENS_H * r.p} className="cell-fill" />}
               {r && r.finalP > 0.001 && <rect x={lensX(k)} y={lensTop + LENS_H - 4} width={lensW(k) * Math.min(1, r.finalP)} height={4} className="cell-bar" />}
-              <text x={lensX(k) + 5} y={lensTop + 19} className={long ? "cell-text cell-text-long" : "cell-text"}>{r ? clip(show(r.piece)) : "?"}</text>
+              <text key={r ? r.piece : "?"} x={lensX(k) + 5} y={lensTop + 19} className={long ? "cell-text cell-text-long flap" : "cell-text flap"}
+                style={{ animationDelay: `${k * STEP}ms` }}>{r ? clip(show(r.piece)) : "?"}</text>
               {r && <text x={lensX(k) + 5} y={lensTop + 36} className="cell-pct">{pct(r.p)}</text>}
               <text x={lensX(k) + lensW(k) / 2} y={lensTop + LENS_H + 14} textAnchor="middle" className="axis">{k === 0 ? "start" : k - 1}</text>
             </g>
