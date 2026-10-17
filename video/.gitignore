@@ -1,0 +1,11 @@
+node_modules/
+build/
+out/
+public/footage/
+public/music.wav
+src/fonts.generated.ts
+*.m4a
+*.mp3
+public/footage2/
+public/footage3/
+public/trailer*.wav

@@ -1,10 +1,10 @@
 // The home screen: every part of GPT-2 laid out like a periodic table,
-// shaded by how much it writes at the last token of your prompt. Heads can
-// be unplugged to see what the model does without them.
+// shaded by how much it writes at a token of your prompt, or by how it votes
+// for GPT-2's answer. Click a part to open it.
 
 import { useCallback, useMemo, useState } from "react";
 import type { GpuEngine } from "../engine/gpu/engine.ts";
-import type { Intervention, Trace } from "../engine/hooks.ts";
+import type { Trace } from "../engine/hooks.ts";
 import type { Weights } from "../engine/model.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
 import { predictions, show, word } from "./analysis.ts";
@@ -16,7 +16,10 @@ import { MlpCard } from "./MlpCard.tsx";
 import { tokenize } from "./model.ts";
 import { pct, PromptBox } from "./PromptBox.tsx";
 import type { Writer } from "./useWriter.ts";
-import { href } from "./route.ts";
+import { href, navigate, setUrlParam } from "./route.ts";
+import { IOI_PROMPT, NAME_MOVERS } from "./LabUnplug.tsx";
+import { votes } from "./inside.ts";
+import { cssRgb, diverging, useThemeVersion } from "./inside-ui.tsx";
 import { Term, Tip } from "./Tip.tsx";
 import { ATLAS_SOURCE, habits } from "./atlas.ts";
 import { HeadExamples } from "./HeadExamples.tsx";
@@ -24,19 +27,16 @@ import { label, research } from "./research.ts";
 import { ResearchNotes } from "./ResearchNotes.tsx";
 import { useRun } from "./useRun.ts";
 
-const EXHIBITS = [
-  { n: 1, name: "Tokens", text: "How text is cut into pieces" },
-  { n: 2, name: "Attention", text: "Who looks at whom", route: href({ view: "attention" }) },
-  { n: 3, name: "Layers", text: "Watch the guess take shape", route: href({ view: "layers" }) },
-  { n: 4, name: "Patching", text: "Swap activations until the answer flips", route: href({ view: "patching" }) },
-  { n: 5, name: "Features", text: "Concepts inside the numbers, and steering with them", route: href({ view: "features" }) },
-  { n: 6, name: "Zoom", text: "From the answer down to single numbers", route: href({ view: "zoom" }) },
+const PLACES = [
+  { name: "Heads", text: "Where each head looks, and how it decides", route: href({ view: "head", head: "9.9" }) },
+  { name: "MLPs", text: "3,072 neurons a layer, and what they fire on", route: href({ view: "mlp", arg: "7" }) },
+  { name: "Layers", text: "Watch the guess take shape, number by number", route: href({ view: "layers" }) },
+  { name: "Features", text: "Concepts inside the numbers", route: href({ view: "features" }) },
+  { name: "Weights", text: "Every weight in 3D, down to a single one", route: href({ view: "weights" }) },
+  { name: "Lab", text: "Unplug, swap, steer and trace", route: href({ view: "lab" }) },
 ];
 
-// The classic experiment: switch off the heads that copy the name.
-const IOI_PROMPT = "When Mary and John went to the store, John gave a drink to";
-const NAME_MOVERS = ["9.6", "9.9", "10.0"];
-const BACKUPS = ["9.0", "9.7", "10.1", "10.2", "10.6", "10.10", "11.2", "11.9"];
+type Shade = "activity" | "votes";
 
 interface Props {
   engine: GpuEngine;
@@ -54,34 +54,14 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
   const tokens = useMemo(() => tokenize(tokenizer, prompt), [tokenizer, prompt]);
   const [hover, setHover] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [unplugged, setUnplugged] = useState<string[]>([]);
+  const [shadeBy, setShadeBy] = useState<Shade>("activity");
+  const [rival, setRival] = useState(1);
   const [lit, setLit] = useState<string | null>(null);
   const litHeads = useMemo(() => highlighted(lit, jobs, L, H), [lit, jobs, L, H]);
-  const unKey = unplugged.join(",");
 
-  const run = useCallback(async (t: number[]) => {
-    const last = t.length - 1;
-    const interventions: Intervention[] = unplugged.map((id) => {
-      const [layer, head] = id.split(".").map(Number);
-      return { kind: "head", layer, head, scale: 0 };
-    });
-    // With heads unplugged, also run the intact model, to compare its top
-    // guesses with what the changed model now gives them.
-    const intact = interventions.length ? await engine.run({ tokens: t, lens: { positions: [last], topK: 5 } }) : null;
-    const targets = intact ? Array.from(intact.lens!.ids.subarray(L * 5, L * 5 + 5)) : [];
-    // The lens at every position, so pointing at any token can show what GPT-2 expected next there.
-    const positions = t.map((_, i) => i);
-    const trace = await engine.run({ tokens: t, interventions, read: { z: true, resid: true, residMid: true }, lens: { positions, topK: 10, targets } });
-    const row = L * t.length + last; // final layer, last token
-    const compare = intact
-      ? {
-          items: targets.map((id, k) => ({ piece: tokenizer.piece(id), before: Math.exp(intact.lens!.logprobs[L * 5 + k]), after: Math.exp(trace.lens!.targetLogprobs[row * targets.length + k]) })),
-          now: tokenizer.piece(trace.lens!.ids[row * 10]),
-        }
-      : null;
-    return { trace, compare };
-  }, [engine, weights, tokenizer, d, L, unKey]);
-  const { result, version } = useRun(tokens, run, 150, unKey);
+  // The lens at every position, so pointing at any token can show what GPT-2 expected next there.
+  const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { z: true, resid: true, residMid: true }, lens: { positions: t.map((_, i) => i), topK: 10 } }).then((trace) => ({ trace })), [engine]);
+  const { result, version } = useRun(tokens, run, 150);
 
   const current = !!result && result.trace.tokens === tokens;
   const shown = result?.trace.tokens ?? tokens;
@@ -98,6 +78,17 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
   const mlpMax = activity ? Math.max(...activity.mlps) : 1;
   // Square root, so the busiest head doesn't wash out the rest.
   const shade = (v: number, max: number) => (0.05 + 0.95 * Math.sqrt(v / max)).toFixed(2);
+  // Votes: each part's push toward GPT-2's answer over another of its guesses.
+  const last = shown.length - 1;
+  const guesses = result ? Array.from({ length: 5 }, (_, k) => result.trace.lens!.ids[(L * shown.length + last) * 10 + k]) : [];
+  const voted = useMemo(() => (result && shadeBy === "votes" ? votes(result.trace, weights, last, guesses[0], guesses[rival]) : null), [result, shadeBy, rival, weights, last]);
+  const voteOf = useMemo(() => new Map(voted?.parts.map((p) => [p.id, p.value]) ?? []), [voted]);
+  const voteMax = voted ? Math.max(...voted.parts.map((p) => Math.abs(p.value))) : 1;
+  const theme = useThemeVersion();
+  const rgb = useMemo(() => ({ pos: cssRgb("--pos-rgb"), neg: cssRgb("--neg-rgb") }), [theme]);
+  const headBg = (l: number, h: number) =>
+    voted ? diverging(voteOf.get(`${l}.${h}`) ?? 0, voteMax, rgb.pos, rgb.neg) : `rgba(var(--attn-rgb), ${activity ? shade(activity.heads[l * H + h], headMax) : "0.05"})`;
+  const mlpBg = (l: number) => (voted ? diverging(voteOf.get(`m${l}`) ?? 0, voteMax, rgb.pos, rgb.neg) : `rgba(var(--mlp-rgb), ${activity ? shade(activity.mlps[l], mlpMax) : "0.05"})`);
 
   const focus = hover ?? selected;
   const focusMlp = focus?.startsWith("m") ? Number(focus.slice(1)) : null;
@@ -106,20 +97,20 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
     const [hl, hh] = (focus ?? "0.0").split(".").map(Number);
     return headOutput(result!.trace, weights, hl, hh, pos);
   }, [focus, result, weights, pos]);
-  const isOff = (id: string) => unplugged.includes(id);
-  const toggle = (id: string) => setUnplugged((u) => (u.includes(id) ? u.filter((x) => x !== id) : [...u, id]));
+  const toLab = (off: string[]) => {
+    setUrlParam("off", off.join(","));
+    navigate(href({ view: "lab", tool: "unplug" }));
+  };
   const tryNameMovers = () => {
     setPrompt(IOI_PROMPT);
-    setUnplugged(NAME_MOVERS);
-    setSelected("9.9");
+    toLab(NAME_MOVERS);
   };
 
   return (
     <article className="page">
       <header className="page-head">
-        <div className="eyebrow">The machine · GPT-2 small</div>
         <h1>Every part of the model, working on your prompt</h1>
-        <p className="dek">GPT-2 small has 12 <Term tip={GLOSSARY.layer}>layers</Term>. Each has 12 <Term tip={GLOSSARY.head}>attention heads</Term>, which move information between tokens, and one <Term tip={GLOSSARY.mlp}>MLP</Term>, which works on each token alone. Brightness shows how much each part adds at {pointed === null ? "the last token" : "the token you're pointing at"}, “{lastWord}”{expected ? <>, where GPT-2 expected “{word(expected.piece)}” next ({pct(expected.p)})</> : null}. Point at a token in the prompt to see another; click a head to learn about it or unplug it.</p>
+        <p className="dek">GPT-2 small has 12 <Term tip={GLOSSARY.layer}>layers</Term>. Each has 12 <Term tip={GLOSSARY.head}>attention heads</Term>, which move information between tokens, and one <Term tip={GLOSSARY.mlp}>MLP</Term>, which works on each token alone. Brightness shows how much each part adds at {pointed === null ? "the last token" : "the token you're pointing at"}, “{lastWord}”{expected ? <>, where GPT-2 expected “{word(expected.piece)}” next ({pct(expected.p)})</> : null}. Point at a token in the prompt to see another; click any part to open it.</p>
       </header>
 
       <PromptBox autoFocus writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
@@ -128,7 +119,21 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
 
       <div className="machine-body">
         <div className={!current && result ? "stage table-wrap stale" : "stage table-wrap"}>
-          <HighlightChips value={lit} onChange={setLit} />
+          <div className="machine-tools">
+            <div className="seg" role="radiogroup" aria-label="Shade by">
+              <button role="radio" aria-checked={shadeBy === "activity"} className={shadeBy === "activity" ? "seg-on" : ""} onClick={() => setShadeBy("activity")}>How much it adds</button>
+              <button role="radio" aria-checked={shadeBy === "votes"} className={shadeBy === "votes" ? "seg-on" : ""} onClick={() => setShadeBy("votes")}>How it votes</button>
+            </div>
+            {shadeBy === "activity" ? <HighlightChips value={lit} onChange={setLit} /> : result && (
+              <p className="small vote-legend">
+                <Term tip="A part's vote is what its output, on its own, adds to the gap between two tokens' scores at the last token. All the votes add up exactly to the gap.">Votes</Term> for <span className="vote-for">“{word(tokenizer.piece(guesses[0]))}”</span> over{" "}
+                <select value={rival} onChange={(e) => setRival(Number(e.target.value))} aria-label="The token to compare with">
+                  {guesses.slice(1).map((g, i) => <option key={i} value={i + 1}>{show(tokenizer.piece(g))}</option>)}
+                </select>{" "}
+                <span className="vote-against">against</span>. <a href={href({ view: "lab", tool: "trace" })}>Trace it back in the Lab →</a>
+              </p>
+            )}
+          </div>
           <div className="table" role="grid" aria-label="Attention heads by layer" onMouseLeave={() => setHover(null)}>
             <div className="table-corner"><Tip tip={GLOSSARY.head} align="start">head</Tip></div>
             {Array.from({ length: L }, (_, l) => <div key={l} className="table-col">{l}</div>)}
@@ -137,19 +142,18 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
                 {Array.from({ length: L }, (_, l) => {
                   const id = `${l}.${h}`;
                   const measured = jobsOf(jobs, l, h, H);
-                  const off = isOff(id);
                   return (
-                    <button key={id} className={`head${focus === id ? " head-on" : ""}${selected === id ? " head-picked" : ""}${off ? " head-off" : ""}${lit ? (litHeads.has(id) ? " head-lit" : " head-dim") : ""}`}
+                    <button key={id} className={`head${focus === id ? " head-on" : ""}${selected === id ? " head-picked" : ""}${lit && !voted ? (litHeads.has(id) ? " head-lit" : " head-dim") : ""}`}
                       style={{
-                        ...(off ? {} : { background: `rgba(var(--attn-rgb), ${activity ? shade(activity.heads[l * H + h], headMax) : "0.05"})` }),
+                        background: headBg(l, h),
                         // Alternate two identical animations so each new run replays the ripple.
                         animationName: version % 2 ? "ripple-a" : "ripple-b",
                         animationDelay: `${l * 35}ms`,
                       }}
                       onMouseEnter={() => setHover(id)} onFocus={() => setHover(id)} onBlur={() => setHover(null)}
-                      onClick={() => setSelected(id)} onKeyDown={(e) => (e.key === "u" || e.key === "U") && toggle(id)}
+                      onClick={() => setSelected(id)}
                       aria-pressed={selected === id}
-                      aria-label={`Head ${id}${off ? ", unplugged" : ""}${measured.length ? `, ${measured.map((j) => JOB_TEXT[j].name).join(", ")}` : ""}${IOI_ROLES[id] ? ", research role" : ""}`}>
+                      aria-label={`Head ${id}${measured.length ? `, ${measured.map((j) => JOB_TEXT[j].name).join(", ")}` : ""}${IOI_ROLES[id] ? ", research role" : ""}`}>
                     </button>
                   );
                 })}
@@ -159,46 +163,21 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
             {Array.from({ length: L }, (_, l) => (
               <button key={l} className={`mlp-cell${focus === `m${l}` ? " head-on" : ""}${selected === `m${l}` ? " head-picked" : ""}`} aria-label={`MLP of layer ${l}`}
                 onMouseEnter={() => setHover(`m${l}`)} onFocus={() => setHover(`m${l}`)} onBlur={() => setHover(null)} onClick={() => setSelected(`m${l}`)} aria-pressed={selected === `m${l}`}
-                style={{ background: `rgba(var(--mlp-rgb), ${activity ? shade(activity.mlps[l], mlpMax) : "0.05"})`, animationName: version % 2 ? "ripple-a" : "ripple-b", animationDelay: `${l * 35 + 20}ms` }} />
+                style={{ background: mlpBg(l), animationName: version % 2 ? "ripple-a" : "ripple-b", animationDelay: `${l * 35 + 20}ms` }} />
             ))}
           </div>
           {hover && <div className="grid-hint" aria-hidden="true"><strong>{hover.startsWith("m") ? `MLP ${hover.slice(1)}` : hover}</strong> {hover.startsWith("m") ? "Works on each token by itself. Click for what it pushes toward." : label(hover) ?? habits(hover)[0]}</div>}
           <div className="table-foot">
             <Tip tip={GLOSSARY.layer} align="start">layer →</Tip>
-            <Tip tip={GLOSSARY.activity} align="end"><span className="scale"><span>less</span><span className="scale-bar" /><span>more added at “{lastWord}”</span></span></Tip>
+            {voted ? (
+              <span className="scale"><span>against</span><span className="scale-bar scale-votes" /><span>for</span></span>
+            ) : (
+              <Tip tip={GLOSSARY.activity} align="end"><span className="scale"><span>less</span><span className="scale-bar" /><span>more added at “{lastWord}”</span></span></Tip>
+            )}
           </div>
         </div>
 
         <aside className="machine-side">
-          {unplugged.length > 0 && (
-            <section className="card card-unplugged" aria-live="polite">
-              <div className="card-label">Unplugged</div>
-              <div className="plug-list">
-                {unplugged.map((id) => (
-                  <button key={id} className="plug-chip" onClick={() => toggle(id)} title={`Plug head ${id} back in`}>{id} <span aria-hidden="true">×</span></button>
-                ))}
-                <button className="plug-reset" onClick={() => setUnplugged([])}>Plug all back in</button>
-              </div>
-              {result?.compare && current && (
-                <>
-                  <p className="effect-headline">{headline(result.compare)}</p>
-                  <ul className="effect-list">
-                    {result.compare.items.map((c, i) => (
-                      <li key={i}>
-                        <span className="effect-piece">{show(c.piece)}</span>
-                        <span className="effect-bar"><span className="effect-before" style={{ width: `${c.before * 100}%` }} /><span className="effect-after" style={{ width: `${c.after * 100}%` }} /></span>
-                        <span className="effect-nums">{pct(c.before)} → <strong className={c.after < c.before ? "down" : "up"}>{pct(c.after)}</strong></span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="muted small">Small changes are normal: when a head is switched off, others often step in. Researchers call this self-repair.</p>
-                  {unKey === NAME_MOVERS.join(",") && prompt === IOI_PROMPT && (
-                    <button className="secondary" onClick={() => setUnplugged([...NAME_MOVERS, ...BACKUPS])}>Now unplug the backup name movers too</button>
-                  )}
-                </>
-              )}
-            </section>
-          )}
           {focusMlp !== null ? (
             <MlpCard layer={focusMlp} trace={result?.trace ?? null} weights={weights} tokenizer={tokenizer} position={pos}
               activity={activity ? `${Math.round((activity.mlps[focusMlp] / mlpMax) * 100)}%` : "…"} />
@@ -209,12 +188,11 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
               {research(focus!).circuits.length > 0 && (
                 <div className="role-tags">{research(focus!).circuits.map((c) => <span key={c.role} className="role-tag" title={c.text}>{c.role}</span>)}</div>
               )}
-              <p className="muted small">{isOff(focus!) ? "Unplugged: it adds nothing." : `At “${lastWord}” it adds ${focused.activity} as much as the busiest head.`}</p>
-              {result && current && <DirectEffect trace={result.trace} weights={weights} tokenizer={tokenizer} vector={headVector} position={pos} off={isOff(focus!)} />}
+              <p className="muted small">At “{lastWord}” it adds {focused.activity} as much as the busiest head.{voted ? ` Its vote: ${(voteOf.get(focus!) ?? 0) > 0 ? "+" : ""}${(voteOf.get(focus!) ?? 0).toFixed(2)}.` : ""}</p>
+              {result && current && <DirectEffect trace={result.trace} weights={weights} tokenizer={tokenizer} vector={headVector} position={pos} />}
               <div className="card-buttons">
-                <button className={isOff(focus!) ? "secondary" : "primary"} onClick={() => toggle(focus!)}>{isOff(focus!) ? "Plug back in" : "Unplug"}</button>
-                <a className="secondary" href={href({ view: "attention", head: focus! })}>Open in Attention →</a>
-                <a className="secondary" href={href({ view: "zoom", part: "head", arg: focus! })}>Look inside →</a>
+                <a className="primary" href={href({ view: "head", head: focus! })}>Open head {focus} →</a>
+                <button className="secondary" onClick={() => toLab([focus!])}>Unplug it in the Lab</button>
               </div>
               <details className="more">
                 <summary>More about head {focus}</summary>
@@ -231,32 +209,20 @@ export function Machine({ engine, tokenizer, weights, jobs, prompt, setPrompt, s
             <div className="card">
               <div className="card-label">How to read this</div>
               <p>Columns are the 12 layers, left to right. Each square is an attention head (9.9 is layer 9, head 9), and the teal row is each layer's MLP. Brighter squares add more at the last token.</p>
-              <p className="muted">Click any square to learn what it does.</p>
+              <p className="muted">Click any square to learn what it does, then open it to look inside.</p>
               <button className="secondary" onClick={tryNameMovers}>Try it: unplug the name movers</button>
             </div>
           )}
-          <nav className="exhibit-list" aria-label="Exhibits">
-            <div className="card-label">Exhibits</div>
-            {EXHIBITS.map((e) =>
-              e.route ? (
-                <a key={e.n} href={e.route} className="exhibit-link"><span className="n">{e.n}</span><span><strong>{e.name}</strong><span className="muted"> · {e.text}</span></span></a>
-              ) : (
-                <div key={e.n} className="exhibit-link soon"><span className="n">{e.n}</span><span><strong>{e.name}</strong> · {e.text}</span><span className="soon-tag">soon</span></div>
-              ),
-            )}
+          <nav className="exhibit-list" aria-label="Places to go">
+            <div className="card-label">Go deeper</div>
+            {PLACES.map((e) => (
+              <a key={e.name} href={e.route} className="exhibit-link"><span><strong>{e.name}</strong><span className="muted"> · {e.text}</span></span></a>
+            ))}
           </nav>
         </aside>
       </div>
     </article>
   );
-}
-
-function headline({ items, now }: { items: { piece: string; before: number; after: number }[]; now: string }) {
-  const compare = items;
-  const was = compare[0].piece;
-  return now === was
-    ? `Top guess is still “${word(was)}”, at ${pct(compare[0].after)} instead of ${pct(compare[0].before)}.`
-    : `Top guess changed from “${word(was)}” to “${word(now)}”.`;
 }
 
 // GPT-2's top guess for the token after position `pos`.

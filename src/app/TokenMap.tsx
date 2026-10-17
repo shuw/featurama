@@ -10,8 +10,8 @@ import { PromptBox } from "./PromptBox.tsx";
 import { Term } from "./Tip.tsx";
 import { useRun } from "./useRun.ts";
 import type { Writer } from "./useWriter.ts";
-import { loadTokenMap } from "./zoom.ts";
-import { cssRgb, Section, TokenStrip, useThemeVersion } from "./zoom-ui.tsx";
+import { loadTokenMap } from "./inside.ts";
+import { cssRgb, Section, TokenStrip, useThemeVersion } from "./inside-ui.tsx";
 
 interface Props {
   engine: GpuEngine;
@@ -30,7 +30,7 @@ interface View {
 
 const GRID = 128; // buckets per side, for finding the token under the pointer
 
-export function ZoomMap({ engine, tokenizer, prompt, setPrompt, shuffle, writer }: Props) {
+export function TokenMap({ engine, tokenizer, prompt, setPrompt, shuffle, writer }: Props) {
   const L = engine.config.n_layers;
   const tokens = useMemo(() => tokenize(tokenizer, prompt), [tokenizer, prompt]);
   const [map, setMap] = useState<Float32Array | null>(null);
@@ -87,7 +87,7 @@ export function ZoomMap({ engine, tokenizer, prompt, setPrompt, shuffle, writer 
     <>
       <PromptBox writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
         next={current && trace?.lens ? predictions(trace, L, tokenizer) : null} stale={!current} />
-      <div className="zoom-field">
+      <div className="part-field">
         <span className="card-label">Lens path from</span>
         <TokenStrip tokens={shown} tokenizer={tokenizer} value={q} onChange={setQuery} allowStart label="Choose the token whose guesses to follow" />
       </div>

@@ -1,15 +1,15 @@
-// Pictures of the weights themselves: what GPT-2 learned once and uses for
-// every prompt.
+// Pictures of the weights themselves, what GPT-2 learned once and uses for
+// every prompt: the position embeddings, what a head copies, and the wiring
+// between heads.
 
 import { useEffect, useMemo, useState } from "react";
 import type { GpuEngine } from "../engine/gpu/engine.ts";
 import type { Weights } from "../engine/model.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
 import { show } from "./analysis.ts";
-import { href } from "./route.ts";
 import { Term } from "./Tip.tsx";
-import { copyingTable, loadWiring, positionPca, strongestSources, type Wiring } from "./zoom.ts";
-import { diverging, cssRgb, HeadStepper, partGist, Section, useThemeVersion } from "./zoom-ui.tsx";
+import { copyingTable, loadWiring, positionPca, strongestSources, type Wiring } from "./inside.ts";
+import { diverging, cssRgb, partGist, Section, useThemeVersion } from "./inside-ui.tsx";
 
 interface Props {
   engine: GpuEngine;
@@ -17,17 +17,7 @@ interface Props {
   weights: Weights;
 }
 
-export function ZoomWeights({ engine, tokenizer, weights }: Props) {
-  return (
-    <div className="zoom-steps">
-      <Positions weights={weights} />
-      <Copying engine={engine} tokenizer={tokenizer} weights={weights} />
-      <WiringMap L={engine.config.n_layers} H={engine.config.n_heads} />
-    </div>
-  );
-}
-
-function Positions({ weights }: { weights: Weights }) {
+export function Positions({ weights }: { weights: Weights }) {
   const [pca, setPca] = useState<ReturnType<typeof positionPca> | null>(null);
   useEffect(() => {
     // A second or so of arithmetic: let the page draw first.
@@ -103,9 +93,10 @@ const PRESETS = [
   { id: "4.11", why: "a previous-token head: moves information, doesn't copy words" },
 ];
 
-function Copying({ engine, tokenizer, weights }: Props) {
-  const { n_layers: L, n_heads: H } = engine.config;
-  const [head, setHead] = useState("9.9");
+// For one head; the chips compare with heads known to copy, suppress, or neither.
+export function Copying({ engine, tokenizer, weights, head: start }: Props & { head: string }) {
+  const [head, setHead] = useState(start);
+  useEffect(() => setHead(start), [start]);
   const ids = useMemo(() => NAMES.map((n) => tokenizer.encode(n)).filter((t) => t.length === 1).map((t) => t[0]), [tokenizer]);
   const [table, setTable] = useState<{ head: string; rows: number[][] } | null>(null);
   useEffect(() => {
@@ -125,7 +116,7 @@ function Copying({ engine, tokenizer, weights }: Props) {
       <p>A head's <Term tip="The value and output weights together: what the head writes for whatever token it looks at.">value and output weights</Term> decide what it writes about the token it looks at. Here, each row is a token the head could look at, and each column is a token it could make more likely next. Blue means more likely, red less. A blue diagonal means the head copies: look at “Mary”, push “Mary”.</p>
       <div className="hl-chips compact">
         {PRESETS.map((p) => <button key={p.id} className={head === p.id ? "hl-chip hl-on" : "hl-chip"} onClick={() => setHead(p.id)} title={p.why}>{p.id}</button>)}
-        <HeadStepper id={head} onChange={setHead} L={L} H={H} />
+        {!PRESETS.some((p) => p.id === start) && <button className={head === start ? "hl-chip hl-on" : "hl-chip"} onClick={() => setHead(start)}>{start}</button>}
       </div>
       <p className="muted small">Head {head} · {partGist(head)}</p>
       {!table || table.head !== head ? <p className="muted">Working it out…</p> : (
@@ -149,9 +140,10 @@ function Copying({ engine, tokenizer, weights }: Props) {
 
 const KIND_TEXT = { Q: "its question (query)", K: "its labels (keys)", V: "what it fetches (values)" } as const;
 
-function WiringMap({ L, H }: { L: number; H: number }) {
+export function WiringMap({ sel, onSelect: setSel }: { sel: string; onSelect: (id: string) => void }) {
+  const L = 12;
+  const H = 12;
   const [w, setW] = useState<Wiring | null>(null);
-  const [sel, setSel] = useState("5.5");
   useEffect(() => {
     loadWiring().then(setW).catch(() => {});
   }, []);
@@ -178,7 +170,7 @@ function WiringMap({ L, H }: { L: number; H: number }) {
   };
   return (
     <Section title="The wiring between heads">
-      <p>A head can only use what earlier layers wrote. From the weights alone you can measure which earlier heads write things a later head is built to read, in {KIND_TEXT.Q}, {KIND_TEXT.K} or {KIND_TEXT.V}. Pick a head to see its strongest wires in and out.</p>
+      <p>A head can only use what earlier layers wrote. From the weights alone you can measure which earlier heads write things a later head is built to read, in {KIND_TEXT.Q}, {KIND_TEXT.K} or {KIND_TEXT.V}. Click any head to follow its wires.</p>
       {!w ? <p className="muted">Loading…</p> : (
         <div className="wire-wrap">
           <svg viewBox={`0 0 ${pad * 2 + (L - 1) * C} ${pad * 2 + (H - 1) * R}`} className="wire-svg" role="img" aria-label="Heads and the strongest wiring between them">
@@ -209,7 +201,6 @@ function WiringMap({ L, H }: { L: number; H: number }) {
               <li><span className="wire-key wire-V" /> feeds {KIND_TEXT.V}</li>
             </ul>
             {sel === "5.5" && <p className="small">5.5 is an induction head. Its strongest key wire comes from 4.11, a previous-token head: 4.11 tags each token with the one before it, and 5.5 searches those tags to find what followed last time.</p>}
-            <a className="link-small" href={href({ view: "zoom", part: "head", arg: sel })}>Look inside {sel} →</a>
           </div>
         </div>
       )}

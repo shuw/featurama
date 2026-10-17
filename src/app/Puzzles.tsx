@@ -26,7 +26,6 @@ export function PlayHub() {
   return (
     <article className="page">
       <header className="page-head">
-        <div className="eyebrow">Play</div>
         <h1>Puzzles for the machine</h1>
         <p className="dek">Each puzzle gives you a goal and one tool: unplug heads, steer with a feature, find a head, or read the logit lens. Every one has been solved on this same model.</p>
       </header>

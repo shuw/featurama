@@ -11,7 +11,7 @@ import { PromptBox } from "./PromptBox.tsx";
 import { Term } from "./Tip.tsx";
 import { useRun } from "./useRun.ts";
 import type { Writer } from "./useWriter.ts";
-import { cssRgb, diverging, fmt, Section, TokenStrip, useThemeVersion } from "./zoom-ui.tsx";
+import { cssRgb, diverging, fmt, Section, TokenStrip, useThemeVersion } from "./inside-ui.tsx";
 
 interface Props {
   engine: GpuEngine;
@@ -24,7 +24,7 @@ interface Props {
 
 type Mode = "layers" | "tokens";
 
-export function ZoomStream({ engine, tokenizer, prompt, setPrompt, shuffle, writer }: Props) {
+export function Stream({ engine, tokenizer, prompt, setPrompt, shuffle, writer }: Props) {
   const { n_layers: L, d_model: d } = engine.config;
   const tokens = useMemo(() => tokenize(tokenizer, prompt), [tokenizer, prompt]);
   const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { resid: true }, lens: { positions: [t.length - 1], topK: 5 } }), [engine]);
@@ -64,19 +64,19 @@ export function ZoomStream({ engine, tokenizer, prompt, setPrompt, shuffle, writ
       <PromptBox writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
         next={current && trace?.lens ? predictions(trace, L, tokenizer) : null} stale={!current} />
 
-      <div className="zoom-controls">
+      <div className="part-controls">
         <div className="seg" role="radiogroup" aria-label="What to compare">
           <button role="radio" aria-checked={mode === "layers"} className={mode === "layers" ? "seg-on" : ""} onClick={() => setMode("layers")}>One token, every layer</button>
           <button role="radio" aria-checked={mode === "tokens"} className={mode === "tokens" ? "seg-on" : ""} onClick={() => setMode("tokens")}>Every token, one layer</button>
         </div>
       </div>
       {mode === "layers" ? (
-        <div className="zoom-field">
+        <div className="part-field">
           <span className="card-label">Token</span>
           <TokenStrip tokens={shown} tokenizer={tokenizer} value={q} onChange={setQuery} allowStart label="Choose a token" />
         </div>
       ) : (
-        <div className="zoom-field">
+        <div className="part-field">
           <span className="card-label">Reading</span>
           <div className="seg seg-wrap" role="radiogroup" aria-label="Which layer">
             {Array.from({ length: L + 1 }, (_, r) => (

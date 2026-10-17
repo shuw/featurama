@@ -1,5 +1,5 @@
 // The area under an exhibit's experiment: the main beats on the left, the
-// challenges and the optional guide in a column on the right.
+// challenges and a hint about what to try next in a column on the right.
 
 import type { ReactNode } from "react";
 

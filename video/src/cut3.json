@@ -1,0 +1,15 @@
+{
+  "note": "Where each app recording sits in trailer 3 (seconds), and how its own time maps onto the trailer's: [trailer time from the clip's start, clip time]. Clicks land on beats this way. scripts/sfx3.py reads this too.",
+  "clips": {
+    "hook": { "frames": 243, "from": 12.028, "to": 15.999, "map": [[0, 0], [2.87, 5.23], [3.32, 6.0], [3.971, 6.6]] },
+    "attention": { "frames": 119, "from": 30.0, "to": 33.994, "map": [[0, 0], [1.997, 1.924], [3.994, 3.92]] },
+    "votes": { "frames": 102, "from": 33.994, "to": 36.014, "map": [[0, 0.25], [2.02, 2.27]] },
+    "unplug": { "frames": 157, "from": 36.014, "to": 43.979, "map": [[0, 0], [0.497, 0.222], [1.493, 1.372], [2.497, 2.506], [5.22, 5.229]] },
+    "tokens": { "frames": 111, "from": 43.979, "to": 45.976, "map": [[0, 0], [1.997, 1.997]] },
+    "neurons": { "frames": 46, "from": 47.972, "to": 49.946, "map": [[0, 0], [1.974, 1.5]] },
+    "steer": { "frames": 72, "from": 51.943, "to": 53.94, "map": [[0, 0], [0.5, 0.306], [1.997, 2.37]] },
+    "map": { "frames": 84, "from": 53.94, "to": 55.937, "map": [[0, 0], [1.997, 2.75]] },
+    "puzzle": { "frames": 87, "from": 55.937, "to": 59.931, "map": [[0, 0], [0.5, 0.286], [1.5, 1.236], [3.994, 2.85]] },
+    "backups": { "frames": 183, "from": 59.931, "to": 71.866, "map": [[0, 0], [3.97, 2.859], [7.2, 6.09]] }
+  }
+}

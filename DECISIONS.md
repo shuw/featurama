@@ -100,12 +100,34 @@ Each head also shows the passages where it works hardest (`public/head-examples.
 - Most features are named by the tokens they fire on, plus the words they push toward. A handful are hand-labelled after reading their passages.
 - Steering adds the feature's direction at every token but the start token, including newly written ones. Strengths of 30–60 change the topic; above about 90, GPT-2 loses grammar. The two versions share their dice rolls, so differences come from the steering.
 
-## Zoom (2026-10-11)
+## Three sections (2026-10-11)
 
-- One Zoom section (⌥6; Play moves to ⌥7) with six levels, from the whole model down: the answer, the residual stream, a head, an MLP, then the fixed weights and a token map.
+- The header has three sections: Explore (the machine and a page per part: Machine, Heads, MLPs, Layers, Features), Lab (every experiment that changes a run: Unplug, Swap, Steer, Trace) and Play. Sections and pages share one header row: the open section is a white group in the section pill, with its pages unfolded to its right, and the other sections fold theirs away (inert, so Tab skips them). Below 940 px the pill gets its own row; on phones the sections become three equal tabs with the open section's pages in a scrolling row beneath. ⌥1–⌥3 switch sections; ⌥ and a letter, underlined in the page's name, opens a page (Machine M, Heads H, MLPs P, Layers L, Features A; Unplug G, Swap S, Steer R, Trace T; Puzzles Z, You vs GPT-2 V). The letters avoid Mac accent keys (⌥E, ⌥U, ⌥I, ⌥N) and Alt+D, E and F, which Windows and Linux browsers use. Pages no longer repeat the section and page name above their title. The Guide switch is gone: it only hid one short hint on three pages (Heads, Layers' guess view, Swap), so the hints are always shown.
+- Before this, pages were split two ways at once, by technique (Attention, Layers, Patching, Features) and by zoom level (a separate Zoom tab), so most parts had two homes. Now each part has one page that goes from overview to single numbers: a head's page shows where it looks, then inside it, what it copies and its wiring; Layers reads the same grid as a guess, as numbers, or on the token map.
+- The Machine shades parts by how much they add or by how they vote for the answer. Unplugging moved to the Lab; Machine cards link there with the part already unplugged (?off=).
+- Old addresses (/attention, /patching, /zoom/...) redirect to their new places.
+
+## Looking inside parts (2026-10-11)
+
 - The engine keeps every layer's queries, keys, values and MLP neurons (about 65 MB more GPU memory at 256 tokens), and can unplug a whole MLP. Both match TransformerLens.
 - Who voted: each part's output through the final LayerNorm, at that position's real scale, against the difference between two tokens' embeddings. The votes add up exactly to the score gap, because the LayerNorm's scale is fixed from the real run.
 - Tracing back unplugs parts one at a time (zero ablation), 156 runs for the answer and up to 155 for each later step, a few seconds each. Deeper steps measure how much a part's output changes, not the answer, so a step stays meaningful however far back it goes. Zero ablation overstates MLP 0, which GPT-2 uses as part of reading tokens in; the page says so.
 - Neuron passages come from 2 million WikiText-103 tokens (tools/reference/neurons.py, output committed, 11 MB). What a neuron pushes toward is computed in the browser from its output weights.
 - Wiring is composition scores from TransformerLens (Elhage et al. 2021). A head's wires are its three strongest sources of each kind, if at least twice the typical score. The copying table runs each token through layer 0 for real before applying the head's value and output weights, since the raw embedding gets copy suppression wrong.
 - The token map is a UMAP of the token embedding, computed once (tools/reference/weights.py; umap-learn isn't in requirements.txt because CI doesn't run it). Data lives in public/zoom-data, not public/zoom, so the folder can't shadow the /zoom page.
+
+## Weights tower (2026-10-16)
+
+- Explore › Weights (⌥W) draws all 124M weights in 3D: the token table on the ground, one floor per layer with its matrices lying flat (inputs front to back, outputs left to right), and the same table again on the roof as the unembedding. Biases, LayerNorm parameters and the vectors flowing in (running summary, normalised input, blended values, neurons) are thin strips beside the matrices.
+- It renders with WebGPU on the engine's own device, reading the weight buffers the forward pass uses; nothing is copied. Far away, a pyramid of 4×4, 16×16 and 64×64 block averages (mean and RMS) stands in for the weights; it's built on the GPU once, and again for the forward pass whenever the prompt or token changes.
+- "The forward pass" colours each weight by weight × its input for the chosen token; the token and position tables light only the row that's used, and the roof uses the normalised final summary. "Run it up the tower" reveals floors in order.
+- Positions are sent to the GPU relative to the eye, computed in double precision, with reversed-Z depth, so you can zoom from the whole tower to one weight (its value and fp16 bits) without jitter.
+- Colours are scaled per matrix by a typical value (80th percentile), not RMS, because GPT-2's few huge activations would otherwise darken everything else.
+- Pointing and zooming only count matrices and vectors, so empty floor space doesn't hide the floors below.
+- Navigation is structured so it's hard to get lost: drag moves like a map (the point under the pointer stays under it), shift-drag only turns about the vertical, and the camera tilts by zoom level, from an angled view of the tower to almost straight down on a floor. The view can't leave the tower. Clicking a part flies to it facing straight on; a breadcrumb (Tower › Layer › matrix), Esc, a floor rail and Page Up/Down move between levels.
+- Close to a floor, it's in focus: other floors fade, and floors above it are hidden, since they'd sit between the camera and the floor.
+- "Animate the pass" (on by default) plays the forward pass as a short film, paced to be followed rather than in real time: a 1.6 s establishing shot of the whole tower, a 10 s climb (eased, a little longer on the ground and roof), then the answer. The camera keeps the whole tower in view, turning slowly and rising with the pass; a glowing pulse climbs a line beside the floors, and each floor lights in two soft sweeps (attention, then MLP). Floating callouts tie the input to its row in the token table and the answer to its row on the roof.
+- A new token to follow (generated, typed or picked) replays the pass once things settle, skipping the establishing shot. Typing updates the colours in place.
+- Zoom eases toward its goal; floors fade continuously by distance from the focus, and floors above it dissolve rather than vanish. Floor labels sit at the right end of each floor, out of the line's way; matrix names appear only once a floor is in focus.
+- The view can go full screen (button or F).
+- Weights are also coloured against a typical value (80th percentile): some matrices, like the MLP output, have a few huge weights that would otherwise make the rest look black.

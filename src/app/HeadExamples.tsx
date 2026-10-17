@@ -26,7 +26,7 @@ function loadExamples() {
 export function tryHead(id: string, text: string, setPrompt: (t: string) => void) {
   if (!done("attention.predict")) markDone("attention.predict");
   setPrompt(text);
-  navigate(href({ view: "attention", head: id }));
+  navigate(href({ view: "head", head: id }));
 }
 
 export function HeadExamples({ id, setPrompt, limit = 3 }: { id: string; setPrompt: (t: string) => void; limit?: number }) {

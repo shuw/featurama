@@ -7,7 +7,7 @@
   // for an unknown one assume the site sits at / (or /<repo>/ on GitHub Pages).
   // Leading slashes are collapsed so "//other.site/..." can't become the base.
   const path = location.pathname.replace(/^\/+/, "/");
-  const page = path.match(/^(.*?\/)(?:(?:attention|play)(?:\/[^/]*)?|zoom(?:\/[^/]*){0,2}|layers|patching|features)\/?$/);
+  const page = path.match(/^(.*?\/)(?:head|mlp|layers|features|weights|lab|play|attention|patching|zoom)(?:\/[^/]*){0,2}\/?$/);
   let root = page ? page[1] : path.replace(/[^/]*$/, "");
   if (!page && root !== "/") root = location.hostname.endsWith(".github.io") ? "/" + path.split("/")[1] + "/" : "/";
   const base = document.createElement("base");

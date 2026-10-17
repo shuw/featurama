@@ -13,8 +13,8 @@ import { href } from "./route.ts";
 import { Term } from "./Tip.tsx";
 import { useRun } from "./useRun.ts";
 import type { Writer } from "./useWriter.ts";
-import { headSources, partsBefore, scanAnswer, scanPart, votes, type PartId } from "./zoom.ts";
-import { cssRgb, diverging, fmt, partGist, partName, Section, useThemeVersion } from "./zoom-ui.tsx";
+import { headSources, partsBefore, scanAnswer, scanPart, votes, type PartId } from "./inside.ts";
+import { cssRgb, diverging, fmt, partGist, partName, Section, useThemeVersion } from "./inside-ui.tsx";
 
 interface Props {
   engine: GpuEngine;
@@ -28,7 +28,7 @@ interface Props {
 
 const IOI = "When Mary and John went to the store, John gave a drink to";
 
-export function ZoomAnswer({ engine, tokenizer, weights, prompt, setPrompt, shuffle, writer }: Props) {
+export function LabTrace({ engine, tokenizer, weights, prompt, setPrompt, shuffle, writer }: Props) {
   const { n_layers: L, n_heads: H } = engine.config;
   const tokens = useMemo(() => tokenize(tokenizer, prompt), [tokenizer, prompt]);
   const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { z: true, resid: true, residMid: true, qkv: true, pattern: true }, lens: { positions: [t.length - 1], topK: 5 } }), [engine]);
@@ -64,7 +64,7 @@ export function ZoomAnswer({ engine, tokenizer, weights, prompt, setPrompt, shuf
       {prompt !== IOI && <button className="link-small" onClick={() => { setPrompt(IOI); setPick([0, 3]); }}>Try the classic: “{IOI}”</button>}
 
       {trace && next && v && (
-        <div className="zoom-steps">
+        <div className="part-steps">
           <Section n="1" title="Who voted?">
             <div className="vote-pick">
               <span className="card-label">Why</span>
@@ -142,7 +142,7 @@ function PartNote({ id, value, tw }: { id: PartId; value: number; tw: string }) 
     <div className="part-note">
       <strong>{partName(id)}</strong> <span className="muted">· {partGist(id)}</span>
       <p className="small">Its vote: {value > 0 ? "+" : ""}{fmt(value)} {value >= 0 ? `for “${tw}”` : `against “${tw}”`}.</p>
-      {zoomable && <a className="link-small" href={href(id.startsWith("m") ? { view: "zoom", part: "mlp", arg: id.slice(1) } : { view: "zoom", part: "head", arg: id })}>Look inside {partName(id)} →</a>}
+      {zoomable && <a className="link-small" href={href(id.startsWith("m") ? { view: "mlp", arg: id.slice(1) } : { view: "head", head: id })}>Open {partName(id)} →</a>}
     </div>
   );
 }
@@ -251,7 +251,7 @@ function TraceBack({ engine, weights, tokenizer, trace, target, rival, tw, rw, v
                   </ul>
                 )}
                 {dep && dep.size > 0 && <p className="muted small">How much {partName(id)}'s output changes when each earlier part is unplugged, as a share of its size.{top[0]?.[0] === "m0" ? " MLP 0 shows up almost everywhere: GPT-2 uses it to finish reading each token in, so without it little downstream works." : ""}</p>}
-                <a className="link-small" href={href(id.startsWith("m") ? { view: "zoom", part: "mlp", arg: id.slice(1) } : { view: "zoom", part: "head", arg: id })}>Look inside {partName(id)} →</a>
+                <a className="link-small" href={href(id.startsWith("m") ? { view: "mlp", arg: id.slice(1) } : { view: "head", head: id })}>Open {partName(id)} →</a>
               </div>
             );
           })()}

@@ -1,0 +1,25 @@
+{
+  "name": "featurama-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "music": "../tools/reference/.venv/bin/python -I scripts/music.py",
+    "capture": "node scripts/capture.mjs",
+    "stills": "node scripts/render.mjs --stills",
+    "render": "node scripts/render.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.407",
+    "@remotion/renderer": "4.0.407",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.407"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.2",
+    "@types/react": "19.3.0",
+    "typescript": "5.9.3"
+  }
+}

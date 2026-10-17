@@ -1,4 +1,4 @@
-// Inside one MLP: its 3,072 neurons at a token, what each one fires on, and
+// An MLP's page: its 3,072 neurons at a token, what each one fires on, and
 // one neuron worked out down to single numbers.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,8 +14,9 @@ import { href } from "./route.ts";
 import { Term } from "./Tip.tsx";
 import { useRun } from "./useRun.ts";
 import type { Writer } from "./useWriter.ts";
-import { gelu, neuronData, neuronDirection, neuronInput, neuronsAt, type NeuronInfo } from "./zoom.ts";
-import { cssRgb, fmt, LayerStepper, Numbers, Section, TokenStrip, useThemeVersion } from "./zoom-ui.tsx";
+import { MlpResearch } from "./MlpCard.tsx";
+import { gelu, neuronData, neuronDirection, neuronInput, neuronsAt, type NeuronInfo } from "./inside.ts";
+import { cssRgb, fmt, LayerStepper, Numbers, Section, TokenStrip, useThemeVersion } from "./inside-ui.tsx";
 
 interface Props {
   engine: GpuEngine;
@@ -32,7 +33,7 @@ interface Props {
 
 const COLS = 64; // 3,072 neurons as 48 rows of 64
 
-export function ZoomMlp({ engine, tokenizer, weights, layer, neuron, onPick, prompt, setPrompt, shuffle, writer }: Props) {
+export function MlpPage({ engine, tokenizer, weights, layer, neuron, onPick, prompt, setPrompt, shuffle, writer }: Props) {
   const { n_layers: L, d_mlp: N } = engine.config;
   const tokens = useMemo(() => tokenize(tokenizer, prompt), [tokenizer, prompt]);
   const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { neurons: true, resid: true, residMid: true }, lens: { positions: [t.length - 1], topK: 5 } }), [engine]);
@@ -66,15 +67,19 @@ export function ZoomMlp({ engine, tokenizer, weights, layer, neuron, onPick, pro
   const hint = (n: number) => (info ? info[n].firing.map((t) => tokenizer.piece(t)).filter((p) => !p.includes("\uFFFD")).slice(0, 3).map(show).join(" ") : "");
 
   return (
-    <>
-      <PromptBox writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
+    <article className="page">
+      <header className="page-head">
+        <h1>Inside MLP {layer}</h1>
+        <p className="dek">Each layer's MLP works on every token by itself: 768 numbers in, 3,072 neurons inside, 768 out. See which neurons fire, what they fire on across Wikipedia, and one worked out by hand.</p>
+      </header>
+      <PromptBox autoFocus writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
         next={current && trace?.lens ? predictions(trace, L, tokenizer) : null} stale={!current} />
 
-      <div className="zoom-controls">
+      <div className="part-controls">
         <LayerStepper layer={layer} onChange={(l) => onPick(l, null)} L={L} />
-        <p className="muted small zoom-gist"><strong>MLP {layer}</strong> · 768 numbers in, 3,072 <Term tip="Each neuron reads the token's 768 numbers through its own 768 weights, adds them up, and passes the total through a curve called GELU that keeps positives and flattens negatives to about zero.">neurons</Term> inside, 768 out</p>
+        <p className="muted small part-gist"><strong>MLP {layer}</strong> · 768 numbers in, 3,072 <Term tip="Each neuron reads the token's 768 numbers through its own 768 weights, adds them up, and passes the total through a curve called GELU that keeps positives and flattens negatives to about zero.">neurons</Term> inside, 768 out</p>
       </div>
-      <div className="zoom-field">
+      <div className="part-field">
         <span className="card-label">At token</span>
         <TokenStrip tokens={shown} tokenizer={tokenizer} value={q} onChange={setQuery} allowStart label="Choose a token"
           tint={(t) => (along && t > 0 && along[t] > 0 ? `rgba(var(--mlp-rgb), ${(0.12 + 0.88 * Math.min(1, along[t] / alongMax)).toFixed(2)})` : undefined)} />
@@ -105,6 +110,9 @@ export function ZoomMlp({ engine, tokenizer, weights, layer, neuron, onPick, pro
             </ul>
             <p className="muted small">Bars compare each neuron with its strongest firing on Wikipedia.</p>
           </Section>
+          <Section title={`What's known about MLP ${layer}`}>
+            <MlpResearch layer={layer} />
+          </Section>
           <Section title="Neurons are messy">
             <p>You might hope each neuron means one thing. Some do, but many fire on several unrelated things: open a few and compare their passages. GPT-2 stores more ideas than it has neurons by sharing them, which researchers call <Term tip="Packing more concepts than there are neurons by giving each concept a direction made of many neurons at once. Sparse autoencoders try to undo it.">superposition</Term>. That's why the <a href={href({ view: "features" })}>Features page</a> uses a sparse autoencoder: it splits the numbers into directions that are much more often about one thing.</p>
           </Section>
@@ -117,7 +125,7 @@ export function ZoomMlp({ engine, tokenizer, weights, layer, neuron, onPick, pro
           )}
         </aside>
       </div>
-    </>
+    </article>
   );
 }
 
@@ -181,7 +189,7 @@ function NeuronCard({ layer, n, act, info, failed, trace, weights, tokenizer, po
     <section className="card head-card">
       <div className="head-name">Neuron {layer}.{n}</div>
       {info && <p className="muted small">Fires on {info.perMillion >= 10000 ? `${(info.perMillion / 10000).toFixed(1)}% of` : `${info.perMillion.toLocaleString()} in a million`} Wikipedia tokens; strongest {fmt(info.top, 1)}.</p>}
-      <div className="card-label zoom-sub">Worked out at “{at}”</div>
+      <div className="card-label part-sub">Worked out at “{at}”</div>
       <div className="one-grid">
         <span className="card-label">768 × weight</span><Numbers values={input.products} label="Each input number times its weight" height={18} />
       </div>

@@ -1,32 +1,62 @@
 import { useEffect, useState } from "react";
 import { Attention } from "./Attention.tsx";
 import { Features } from "./Features.tsx";
+import { Lab } from "./Lab.tsx";
+import { LayersPage } from "./LayersPage.tsx";
+import { MlpPage } from "./MlpPage.tsx";
+import { Tower } from "./Tower.tsx";
 import { PlayHub, PuzzleLevel } from "./Puzzles.tsx";
 import { Loading } from "./Loading.tsx";
 import { Game } from "./Game.tsx";
-import { Layers } from "./Layers.tsx";
 import { Machine } from "./Machine.tsx";
-import { Patching } from "./Patching.tsx";
 import { useModel, type ModelState } from "./model.ts";
-import { href, navigate, promptFromUrl, setPromptInUrl, shareUrl, useRoute, type Route } from "./route.ts";
+import { href, navigate, promptFromUrl, sectionOf, setPromptInUrl, shareUrl, useRoute, type Route, type Section } from "./route.ts";
 import { randomPhrase } from "./phrases.ts";
 import { GLOSSARY } from "./glossary.ts";
 import { Tip } from "./Tip.tsx";
 import { useWriter } from "./useWriter.ts";
 import { Wordmark } from "./Wordmark.tsx";
-import { Zoom } from "./Zoom.tsx";
 
 type Theme = "light" | "dark";
 
-const TABS: { view: Route["view"]; label: string; key: string }[] = [
-  { view: "machine", label: "Machine", key: "1" },
-  { view: "attention", label: "Attention", key: "2" },
-  { view: "layers", label: "Layers", key: "3" },
-  { view: "patching", label: "Patching", key: "4" },
-  { view: "features", label: "Features", key: "5" },
-  { view: "zoom", label: "Zoom", key: "6" },
-  { view: "play", label: "Play", key: "7" },
+// Three sections, each with its pages. ⌥1–⌥3 switch sections; ⌥ and a
+// letter, underlined in its name, opens a page. The letters skip Mac accent
+// keys (⌥E, ⌥U, ⌥I, ⌥N) and Alt+D, E, F, which browsers use elsewhere.
+interface Place {
+  section: Section;
+  label: string;
+  key: string;
+  to: Route;
+  on: (r: Route) => boolean;
+}
+const PLACES: Place[] = [
+  { section: "explore", label: "Machine", key: "M", to: { view: "machine" }, on: (r) => r.view === "machine" },
+  { section: "explore", label: "Heads", key: "H", to: { view: "head" }, on: (r) => r.view === "head" },
+  { section: "explore", label: "MLPs", key: "P", to: { view: "mlp" }, on: (r) => r.view === "mlp" },
+  { section: "explore", label: "Layers", key: "L", to: { view: "layers" }, on: (r) => r.view === "layers" },
+  { section: "explore", label: "Features", key: "A", to: { view: "features" }, on: (r) => r.view === "features" },
+  { section: "explore", label: "Weights", key: "W", to: { view: "weights" }, on: (r) => r.view === "weights" },
+  { section: "lab", label: "Unplug", key: "G", to: { view: "lab", tool: "unplug" }, on: (r) => r.view === "lab" && r.tool === "unplug" },
+  { section: "lab", label: "Swap", key: "S", to: { view: "lab", tool: "swap" }, on: (r) => r.view === "lab" && r.tool === "swap" },
+  { section: "lab", label: "Steer", key: "R", to: { view: "lab", tool: "steer" }, on: (r) => r.view === "lab" && r.tool === "steer" },
+  { section: "lab", label: "Trace", key: "T", to: { view: "lab", tool: "trace" }, on: (r) => r.view === "lab" && r.tool === "trace" },
+  { section: "play", label: "Puzzles", key: "Z", to: { view: "play" }, on: (r) => r.view === "play" && r.level !== "guess" },
+  { section: "play", label: "You vs GPT-2", key: "V", to: { view: "play", level: "guess" }, on: (r) => r.view === "play" && r.level === "guess" },
 ];
+
+const SECTIONS: { section: Section; label: string; key: string }[] = [
+  { section: "explore", label: "Explore", key: "1" },
+  { section: "lab", label: "Lab", key: "2" },
+  { section: "play", label: "Play", key: "3" },
+];
+const first = (section: Section) => PLACES.find((p) => p.section === section)!;
+
+// The page's name with its shortcut letter underlined.
+function Hot({ label, letter }: { label: string; letter: string }) {
+  const i = label.toUpperCase().indexOf(letter);
+  // One span, so the flex link doesn't split the text and drop its spaces.
+  return <span>{label.slice(0, i)}<u className="hot">{label[i]}</u>{label.slice(i + 1)}</span>;
+}
 
 function readPref(key: string): string | null {
   try {
@@ -45,8 +75,8 @@ function writePref(key: string, value: string) {
 export function App() {
   const model = useModel();
   const route = useRoute();
+  const section = sectionOf(route);
   const [theme, setTheme] = useState<Theme>(() => (readPref("featurama-theme") === "dark" ? "dark" : "light"));
-  const [guide, setGuide] = useState(() => readPref("featurama-guide") !== "off");
   // One prompt for every page, so switching pages keeps what you typed. It
   // starts as a random phrase, or the one in a shared link; once edited, it's
   // kept across reloads and in the address, so the link can be shared.
@@ -57,24 +87,25 @@ export function App() {
     return () => clearTimeout(t);
   }, [prompt, edited]);
   const [showKeys, setShowKeys] = useState(false);
+
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     writePref("featurama-theme", theme);
   }, [theme]);
-  useEffect(() => writePref("featurama-guide", guide ? "on" : "off"), [guide]);
 
-  // ⌥1–⌥7 (Alt on Windows and Linux) switch pages, even while typing.
+  // ⌥1–⌥3 and ⌥ + a letter (Alt on Windows and Linux) switch pages, even while typing.
   // Holding ⌥ highlights the shortcuts on the tabs.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "Alt") setShowKeys(true);
       if (!e.altKey || e.metaKey || e.ctrlKey) return;
-      const tab = TABS.find((t) => e.code === `Digit${t.key}`);
-      if (!tab) return;
+      const to = SECTIONS.find((t) => e.code === `Digit${t.key}`)?.section;
+      const place = to ? first(to) : PLACES.find((p) => e.code === `Key${p.key}`);
+      if (!place) return;
       e.preventDefault();
-      navigate(href({ view: tab.view } as Route));
+      navigate(href(place.to));
     };
     const up = (e: KeyboardEvent) => e.key === "Alt" && setShowKeys(false);
     const blur = () => setShowKeys(false);
@@ -117,21 +148,33 @@ export function App() {
           <a className="brand" href={href({ view: "machine" })} aria-label="Featurama home">
             <Wordmark height={44} label="featurama" />
           </a>
-          <nav className="tabs" aria-label="Sections">
-            {TABS.map((t) => (
-              <a key={t.view} className={route.view === t.view ? "tab tab-on" : "tab"} href={href({ view: t.view } as Route)}
-                aria-current={route.view === t.view ? "page" : undefined} aria-keyshortcuts={`Alt+${t.key}`} title={`${t.label} (⌥${t.key})`}>
-                {t.label}
-                <kbd className="tab-key">⌥{t.key}</kbd>
-              </a>
-            ))}
+          {/* One row: the open section unfolds its pages to its right. */}
+          <nav className="tabs" aria-label="Sections and pages">
+            {SECTIONS.map((t) => {
+              const on = section === t.section;
+              return (
+                <div key={t.section} className={on ? "sec sec-on" : "sec"}>
+                  <a className="tab" href={href(first(t.section).to)} aria-current={on ? "true" : undefined}
+                    aria-keyshortcuts={`Alt+${t.key}`} title={`${t.label} (⌥${t.key})`}>
+                    {t.label}
+                    <kbd className="tab-key">⌥{t.key}</kbd>
+                  </a>
+                  <div className="sec-pages" inert={!on}>
+                    <div className="sec-pages-inner">
+                      {PLACES.filter((p) => p.section === t.section).map((p) => (
+                        <a key={p.label} href={href(p.to)} className={on && p.on(route) ? "place place-on" : "place"} aria-current={on && p.on(route) ? "page" : undefined}
+                          aria-keyshortcuts={`Alt+${p.key}`} title={`${p.label} (⌥${p.key})`}>
+                          <Hot label={p.label} letter={p.key} />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </nav>
           <div className="utils">
             <Status model={model} />
-            <button className="switch" role="switch" aria-checked={guide} onClick={() => setGuide(!guide)} title={GLOSSARY.guide}>
-              <span className="switch-track"><span className="switch-thumb" /></span>
-              <span className="switch-label">Guide</span>
-            </button>
             <button className="icon-button" onClick={async () => {
               try {
                 await navigator.clipboard.writeText(shareUrl(prompt));
@@ -150,20 +193,24 @@ export function App() {
       </header>
       <main>
         {model.status === "ready" ? (
-          route.view === "attention" ? (
-            <Attention engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} jobs={model.jobs} head={route.head} guide={guide} {...shared} />
+          route.view === "head" ? (
+            <Attention engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} jobs={model.jobs} head={route.head} {...shared} />
+          ) : route.view === "mlp" ? (
+            <MlpPage engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} layer={Number((route.arg ?? "7").split(".")[0])}
+              neuron={route.arg?.includes(".") ? Number(route.arg.split(".")[1]) : null}
+              onPick={(l, n) => navigate(href({ view: "mlp", arg: n === null ? `${l}` : `${l}.${n}` }), true)} {...shared} />
+          ) : route.view === "layers" ? (
+            <LayersPage engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} mode={route.mode} {...shared} />
+          ) : route.view === "weights" ? (
+            <Tower engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} {...shared} />
           ) : route.view === "features" ? (
             <Features engine={model.engine} tokenizer={model.tokenizer} {...shared} />
-          ) : route.view === "zoom" ? (
-            <Zoom engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} part={route.part} arg={route.arg} {...shared} />
+          ) : route.view === "lab" ? (
+            <Lab engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} tool={route.tool ?? "unplug"} {...shared} />
           ) : route.view === "play" ? (
             route.level === "guess" ? <Game engine={model.engine} tokenizer={model.tokenizer} />
             : route.level ? <PuzzleLevel key={route.level} engine={model.engine} tokenizer={model.tokenizer} jobs={model.jobs} id={route.level} />
             : <PlayHub />
-          ) : route.view === "patching" ? (
-            <Patching engine={model.engine} tokenizer={model.tokenizer} guide={guide} />
-          ) : route.view === "layers" ? (
-            <Layers engine={model.engine} tokenizer={model.tokenizer} guide={guide} {...shared} />
           ) : (
             <Machine engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} jobs={model.jobs} {...shared} />
           )
@@ -187,8 +234,8 @@ export function App() {
       </main>
       <footer className="foot">
         <span>GPT-2 small (OpenAI, 2019) running on your GPU with WebGPU. Nothing you type leaves your browser.</span>
-        <span>⌥1–⌥7 switch pages · Tab adds GPT-2's suggestion</span>
-        <a href="https://github.com/shuw/featurama">Source</a>
+        <span>⌥1–⌥3 switch sections · ⌥ + underlined letter opens a page · Tab adds GPT-2's suggestion</span>
+        <span><a href="https://github.com/shuw/featurama">Source</a> · <a href="https://shuw.github.io/">More from the creator</a></span>
       </footer>
     </div>
   );

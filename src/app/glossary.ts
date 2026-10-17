@@ -18,7 +18,6 @@ export const GLOSSARY = {
   score: "From 0 to 1: the share of its attention the head gave to the expected token in the repeated random sequence.",
   attentionRow: "Each row is one token looking back. The shade shows how much of its attention goes to each earlier token; a row adds up to 100%.",
   local: "GPT-2 runs on your graphics card. Nothing you type leaves your browser.",
-  guide: "Short hints beside each exhibit about what to try next.",
   shuffle: "Try another starting phrase",
   direct: "What this part's output, on its own, does to GPT-2's next-token scores at this token: the whole words and numbers it makes most and least likely. Later layers can change the final outcome.",
   highlight: "Outline the heads known to do one kind of job.",

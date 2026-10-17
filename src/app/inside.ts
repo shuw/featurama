@@ -1,4 +1,4 @@
-// The arithmetic behind the Zoom pages: inside a head and an MLP, who voted
+// The arithmetic for looking inside parts: inside a head and an MLP, who voted
 // for the answer, and tracing it back by unplugging parts. Everything is
 // computed from a real run and the real weights.
 

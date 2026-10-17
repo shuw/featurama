@@ -1,15 +1,15 @@
-// Exhibit 5: the features a sparse autoencoder finds at layer 7, and steering with them.
+// The features a sparse autoencoder finds at layer 7. Steering with them is in the Lab.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GpuEngine } from "../engine/gpu/engine.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
 import { predictions, show, word } from "./analysis.ts";
-import { featureDetail, featureHint, featureName, SAE_LAYER, searchFeatures, topAt, useSae, write, type FeatureDetail, type FeatureInfo } from "./features.ts";
+import { featureDetail, featureHint, featureName, SAE_LAYER, searchFeatures, topAt, useSae, type FeatureDetail, type FeatureInfo } from "./features.ts";
 import { STEER_PICKS } from "./feature-labels.ts";
 import { GLOSSARY } from "./glossary.ts";
 import { tokenize } from "./model.ts";
 import { PromptBox } from "./PromptBox.tsx";
-import { setUrlParam, urlParam } from "./route.ts";
+import { href, setUrlParam, urlParam } from "./route.ts";
 import { Term } from "./Tip.tsx";
 import { useRun } from "./useRun.ts";
 import type { Writer } from "./useWriter.ts";
@@ -71,9 +71,8 @@ export function Features({ engine, tokenizer, prompt, setPrompt, shuffle, writer
   return (
     <article className="page">
       <header className="page-head">
-        <div className="eyebrow">Exhibit 5 · Features</div>
         <h1>Concepts inside the numbers</h1>
-        <p className="dek">Halfway through, at layer {SAE_LAYER}, each token is 768 numbers. A <Term tip={GLOSSARY.sae}>sparse autoencoder</Term> splits them into 24,576 <Term tip={GLOSSARY.feature}>features</Term>, each firing on one kind of thing. Turn one up, and GPT-2's writing bends toward it.</p>
+        <p className="dek">Halfway through, at layer {SAE_LAYER}, each token is 768 numbers. A <Term tip={GLOSSARY.sae}>sparse autoencoder</Term> splits them into 24,576 <Term tip={GLOSSARY.feature}>features</Term>, each firing on one kind of thing. In the Lab you can turn one up and watch GPT-2's writing bend toward it.</p>
       </header>
 
       <PromptBox autoFocus writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
@@ -137,7 +136,7 @@ export function Features({ engine, tokenizer, prompt, setPrompt, shuffle, writer
                 <p className="muted">Most features have no name: GPT-2 was never told about concepts. We name each by the tokens it fires on most, and hand-label a few.</p>
               </section>
             ) : (
-              <FeatureCard key={picked} id={picked} info={info(picked)} name={name(picked)} hint={hint(picked)} engine={engine} tokenizer={tokenizer} tokens={tokens} direction={ready.sae.direction} />
+              <FeatureCard key={picked} id={picked} info={info(picked)} name={name(picked)} hint={hint(picked)} tokenizer={tokenizer} />
             )}
           </aside>
         </div>
@@ -146,13 +145,10 @@ export function Features({ engine, tokenizer, prompt, setPrompt, shuffle, writer
   );
 }
 
-function FeatureCard({ id, info, name, hint, engine, tokenizer, tokens, direction }: {
-  id: number; info: FeatureInfo | undefined; name: string; hint: string; engine: GpuEngine; tokenizer: Tokenizer; tokens: number[]; direction: (id: number) => Promise<Float32Array>;
+function FeatureCard({ id, info, name, hint, tokenizer }: {
+  id: number; info: FeatureInfo | undefined; name: string; hint: string; tokenizer: Tokenizer;
 }) {
   const [detail, setDetail] = useState<FeatureDetail | null>(null);
-  const [strength, setStrength] = useState(50);
-  const [out, setOut] = useState<{ plain: string; steered: string; at: number } | null>(null);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     let live = true;
     featureDetail(id).then((d) => live && setDetail(d));
@@ -160,17 +156,6 @@ function FeatureCard({ id, info, name, hint, engine, tokenizer, tokens, directio
       live = false;
     };
   }, [id]);
-
-  const steer = async () => {
-    setBusy(true);
-    const seed = Math.floor(Math.random() * 1e9);
-    const dir = await direction(id);
-    setOut({ plain: "", steered: "", at: strength });
-    const n = 24;
-    await write(engine, tokenizer, tokens, n, seed, undefined, (plain) => setOut((o) => o && { ...o, plain }));
-    await write(engine, tokenizer, tokens, n, seed, { direction: dir, strength }, (steered) => setOut((o) => o && { ...o, steered }));
-    setBusy(false);
-  };
 
   const often = info && info.perMillion > 0 ? `fires on about 1 in ${Math.max(1, Math.round(1e6 / info.perMillion)).toLocaleString()} tokens of Wikipedia` : "never fired on our Wikipedia sample";
   return (
@@ -189,21 +174,8 @@ function FeatureCard({ id, info, name, hint, engine, tokenizer, tokens, directio
         )}
       </div>
 
-      <div className="steer">
-        <div className="card-label">Steer GPT-2 with it</div>
-        <label className="steer-row">
-          <span className="push-label">strength</span>
-          <input type="range" min={-100} max={150} step={5} value={strength} onChange={(e) => setStrength(Number(e.target.value))} aria-label="Steering strength" />
-          <span className="mono">{strength > 0 ? "+" : ""}{strength}</span>
-        </label>
-        <button className="primary" onClick={steer} disabled={busy}>{busy ? "Writing…" : "Write with and without it"}</button>
-        {out && (
-          <div className="steer-out">
-            <div><div className="card-label">Without</div><p className="steer-text">{out.plain}</p></div>
-            <div><div className="card-label">With #{id} at {out.at > 0 ? "+" : ""}{out.at}</div><p className="steer-text steer-on">{out.steered}</p></div>
-          </div>
-        )}
-        <p className="muted small">Both use the same dice rolls, so differences come from the steering. Push too hard and GPT-2 falls apart.</p>
+      <div className="card-buttons">
+        <a className="primary" href={href({ view: "lab", tool: "steer" })}>Steer GPT-2 with it →</a>
       </div>
 
       {detail && detail.passages.length > 0 && (

@@ -11,10 +11,10 @@ The app is a static page that runs GPT-2 on WebGPU, so the surface is Chrome.
 2. Start the dev server: `bun run dev` (port 5190; rebuilds on change, refresh to see it). If `scripts/serve.ts` itself changed, restart it.
 3. Drive with playwright-core and system Chrome (Playwright's own WebKit is killed by Santa on Shu's Mac):
    `chromium.launch({ channel: "chrome", args: ["--enable-unsafe-webgpu", "--enable-gpu", "--use-angle=metal"] })`. Headless works with WebGPU.
-4. `node scripts/look.mjs <dir>` walks the main pages (Machine, Attention predict and reveal, Layers predict, reveal, typing, dark mode); Zoom pages need their own drive and saves full-page screenshots.
+4. `node scripts/look.mjs <dir>` walks the main pages through old #/ links (Machine, the head page's predict and reveal, Layers predict, reveal, typing, dark mode); the head page's inside sections, MLPs, Layers' numbers and map, and the Lab need their own drive and saves full-page screenshots.
 5. Engine changes: `bun run test:gpu` with the dev server running compares the WebGPU engine with TransformerLens fixtures (and the layer-7 sparse autoencoder with fixtures/sae.json) and prints timings.
 6. The sparse autoencoder needs `public/model/sae-l7` (`tools/reference/.venv/bin/python -I tools/reference/sae.py`). Feature data in public/features is committed; regenerate it with tools/reference/features.py only on Apple silicon or a GPU.
-7. Zoom data in public/neurons and public/zoom-data is committed (tools/reference/neurons.py and weights.py, Apple silicon or a GPU). `bun run fixtures` regenerates fixtures, including q/k/v, neurons and an MLP unplug.
+7. Data for the inside views in public/neurons and public/zoom-data is committed (tools/reference/neurons.py and weights.py, Apple silicon or a GPU). `bun run fixtures` regenerates fixtures, including q/k/v, neurons and an MLP unplug.
 8. Puzzles: every level in src/app/puzzles.ts must stay solvable. After changing one, solve it in the browser at /play/<id>.
 
 Gotchas:

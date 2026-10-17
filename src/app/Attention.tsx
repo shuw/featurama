@@ -1,4 +1,5 @@
-// Exhibit 2: attention. Pick a head and a word, and see where it looks.
+// A head's page: pick a head and a token and see where it looks, then look
+// inside it, down to single numbers.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GpuEngine } from "../engine/gpu/engine.ts";
@@ -10,7 +11,8 @@ import { Beats } from "./Beats.tsx";
 import { attentionRow, combinedRow, headActivity, inductionScore, IOI_ROLES, IOI_SOURCE, JOB_TEXT, jobsOf, previousScore, type HeadJobs } from "./heads.ts";
 import { tokenize } from "./model.ts";
 import { done, markDone } from "./progress.ts";
-import { href, promptFromUrl } from "./route.ts";
+import { href, navigate, promptFromUrl } from "./route.ts";
+import { HeadInside } from "./HeadInside.tsx";
 import { HighlightChips, highlighted } from "./highlights.tsx";
 import { PromptBox } from "./PromptBox.tsx";
 import type { Writer } from "./useWriter.ts";
@@ -49,14 +51,13 @@ interface Props {
   weights: Weights;
   jobs: HeadJobs;
   head?: string;
-  guide: boolean;
   prompt: string;
   setPrompt: (text: string) => void;
   shuffle: () => void;
   writer: Writer;
 }
 
-export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, guide, prompt, setPrompt, shuffle, writer }: Props) {
+export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, prompt, setPrompt, shuffle, writer }: Props) {
   const { n_layers: L, n_heads: H } = engine.config;
   const [override, setOverride] = useState<string | null>(() => (done("attention.predict") || promptFromUrl() !== null ? null : PREDICT_PROMPT));
   const text = override ?? prompt;
@@ -68,12 +69,16 @@ export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, g
   const [guess, setGuess] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<string | null>(null);
   const [, rerender] = useState(0);
-  const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { pattern: true, z: true }, lens: { positions: [t.length - 1], topK: 10 } }), [engine]);
+  const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { pattern: true, z: true, qkv: true, resid: true }, lens: { positions: [t.length - 1], topK: 10 } }), [engine]);
   const { result: trace } = useRun(tokens, run);
 
   useEffect(() => {
     if (routeHead && !predicting) setHead(routeHead);
   }, [routeHead]);
+  // Keep the address on the head being shown, so a link opens it.
+  useEffect(() => {
+    if (!predicting && head !== routeHead) navigate(href({ view: "head", head }), true);
+  }, [head, predicting]);
 
   const [l, h] = head.split(".").map(Number);
   const [all, setAll] = useState(false);
@@ -140,7 +145,6 @@ export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, g
   return (
     <article className="page">
       <header className="page-head">
-        <div className="eyebrow">Exhibit 2 · Attention</div>
         <h1>Who's looking at whom</h1>
         <p className="dek">Every token can look back at the tokens before it. Each of GPT-2's 144 <Term tip={GLOSSARY.head}>attention heads</Term> has its own idea of where to look.</p>
       </header>
@@ -212,7 +216,7 @@ export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, g
       </div>
 
       <Beats
-        guide={guide && (predicting
+        guide={(predicting
           ? "Guess first. All four words are in the sentence, but only one finishes “gave a drink to…”."
           : "Click a token to see where it looks. Pick heads in the small grid; the chips under it outline heads known to do a job.")}
         side={!predicting && (
@@ -268,7 +272,6 @@ export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, g
               </div>
               {trace && <p className="muted">On your prompt, {Math.round(prevHere * 100)}% of its attention goes to the token just before{indHere > 0 ? `, and ${Math.round(indHere * 100)}% to whatever followed an earlier copy` : ""}.</p>}
               <p className="caveat">Where a head looks is only half its story. What it copies from there, and what later layers do with it, matter too.</p>
-              <a className="link-small" href={href({ view: "zoom", part: "head", arg: head })}>Look inside head {head}: what it asks, fetches and writes →</a>
             </section>
             <section className="card">
               <HeadExamples id={head} setPrompt={edit} />
@@ -277,6 +280,8 @@ export function Attention({ engine, tokenizer, weights, jobs, head: routeHead, g
           </>
         )}
       </Beats>
+
+      {!predicting && !all && trace && <HeadInside engine={engine} tokenizer={tokenizer} weights={weights} trace={trace} id={head} query={Math.min(q, trace.tokens.length - 1)} onHead={(id) => { setHead(id); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
     </article>
   );
 }

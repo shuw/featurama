@@ -94,6 +94,14 @@ export class GpuEngine {
     this.sae = { layer, size, cap: 0 };
   }
 
+  // A weight tensor's buffer (fp16, two to a u32), for views that draw the
+  // weights straight from the GPU.
+  weightBuffer(name: string) {
+    const b = this.weights.get(name);
+    if (!b) throw new Error(`No tensor named ${name}`);
+    return b;
+  }
+
   get saeSize() {
     return this.sae?.size ?? 0;
   }

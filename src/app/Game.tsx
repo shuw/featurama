@@ -119,7 +119,6 @@ export function Game({ engine, tokenizer }: { engine: GpuEngine; tokenizer: Toke
   return (
     <article className="page">
       <header className="page-head">
-        <div className="eyebrow">Play</div>
         <h1>You vs GPT-2</h1>
         <p className="dek">Guess the word that comes next. GPT-2 plays the same sentences. One point for each of you that gets the real word.</p>
       </header>

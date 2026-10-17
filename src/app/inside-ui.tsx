@@ -1,4 +1,4 @@
-// Small pieces shared by the Zoom pages.
+// Small pieces shared by the pages that look inside parts.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Tokenizer } from "../engine/tokenizer.ts";
@@ -127,8 +127,8 @@ export function partGist(id: string) {
 
 export function Section({ n, title, children, className = "" }: { n?: string; title: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`card zoom-section ${className}`}>
-      <h2 className="zoom-h2">{n && <span className="zoom-n">{n}</span>}{title}</h2>
+    <section className={`card part-section ${className}`}>
+      <h2 className="part-h2">{n && <span className="part-n">{n}</span>}{title}</h2>
       {children}
     </section>
   );

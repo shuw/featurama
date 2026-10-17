@@ -3,74 +3,54 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GpuEngine } from "../engine/gpu/engine.ts";
+import type { Trace } from "../engine/hooks.ts";
 import type { Weights } from "../engine/model.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
-import { predictions, show } from "./analysis.ts";
+import { show } from "./analysis.ts";
 import { DirectEffect } from "./DirectEffect.tsx";
 import { headOutput } from "./heads.ts";
-import { tokenize } from "./model.ts";
-import { pct, PromptBox } from "./PromptBox.tsx";
-import { href } from "./route.ts";
+import { pct } from "./PromptBox.tsx";
 import { Term } from "./Tip.tsx";
-import { useRun } from "./useRun.ts";
-import type { Writer } from "./useWriter.ts";
-import { headSources, insideHead, loadWiring, strongestSources, type Wiring } from "./zoom.ts";
-import { fmt, HeadStepper, Numbers, partGist, Section, TokenStrip } from "./zoom-ui.tsx";
+import { headSources, insideHead } from "./inside.ts";
+import { fmt, Numbers, Section } from "./inside-ui.tsx";
+import { Copying, WiringMap } from "./WeightViews.tsx";
 
 interface Props {
   engine: GpuEngine;
   tokenizer: Tokenizer;
   weights: Weights;
+  trace: Trace; // needs qkv, pattern, z and resid
   id: string;
+  query: number;
   onHead: (id: string) => void;
-  prompt: string;
-  setPrompt: (text: string) => void;
-  shuffle: () => void;
-  writer: Writer;
 }
 
-export function ZoomHead({ engine, tokenizer, weights, id, onHead, prompt, setPrompt, shuffle, writer }: Props) {
-  const { n_layers: L, n_heads: H } = engine.config;
+export function HeadInside({ engine, tokenizer, weights, trace, id, query: q, onHead }: Props) {
   const [l, h] = id.split(".").map(Number);
-  const tokens = useMemo(() => tokenize(tokenizer, prompt), [tokenizer, prompt]);
-  const run = useCallback((t: number[]) => engine.run({ tokens: t, read: { qkv: true, pattern: true, z: true, resid: true }, lens: { positions: [t.length - 1], topK: 5 } }), [engine]);
-  const { result: trace } = useRun(tokens, run);
-  const current = !!trace && trace.tokens === tokens;
-  const shown = trace?.tokens ?? tokens;
-  const [query, setQuery] = useState<number | null>(null);
-  const q = query === null || query >= shown.length ? shown.length - 1 : query;
   const [picked, setPicked] = useState<number | null>(null);
   const [hoverDim, setHoverDim] = useState<number | null>(null);
+  useEffect(() => setPicked(null), [q, id]);
 
-  const inside = useMemo(() => (trace ? insideHead(trace, engine.config, l, h, q) : null), [trace, l, h, q, engine]);
-  const sources = useMemo(() => (trace ? headSources(trace, weights, l, h, q) : null), [trace, weights, l, h, q]);
-  const outVec = useMemo(() => (trace ? headOutput(trace, weights, l, h, q) : null), [trace, weights, l, h, q]);
-  const out = useCallback(() => outVec!, [outVec]);
-  const pieces = shown.map((t, i) => (i === 0 ? "⟨start⟩" : show(tokenizer.piece(t))));
+  const inside = useMemo(() => insideHead(trace, engine.config, l, h, q), [trace, l, h, q, engine]);
+  const sources = useMemo(() => headSources(trace, weights, l, h, q), [trace, weights, l, h, q]);
+  const outVec = useMemo(() => headOutput(trace, weights, l, h, q), [trace, weights, l, h, q]);
+  const out = useCallback(() => outVec, [outVec]);
+  const pieces = trace.tokens.map((t, i) => (i === 0 ? "⟨start⟩" : show(tokenizer.piece(t))));
   const at = pieces[q];
-  const j = picked !== null && inside && picked < inside.scores.length ? picked : inside ? inside.pattern.indexOf(Math.max(...inside.pattern)) : 0;
+  const j = picked !== null && picked < inside.scores.length ? picked : inside.pattern.indexOf(Math.max(...inside.pattern));
 
-  const kMax = inside ? Math.max(...inside.keys.flatMap((k) => Array.from(k, Math.abs))) : 1;
-  const vMax = inside ? Math.max(...inside.values.flatMap((v) => Array.from(v, Math.abs))) : 1;
-  const qMax = inside ? Math.max(...Array.from(inside.q, Math.abs)) : 1;
-  const sMax = inside ? Math.max(...inside.scores.map(Math.abs)) : 1;
+  const kMax = Math.max(...inside.keys.flatMap((k) => Array.from(k, Math.abs)));
+  const vMax = Math.max(...inside.values.flatMap((v) => Array.from(v, Math.abs)));
+  const qMax = Math.max(...Array.from(inside.q, Math.abs));
+  const sMax = Math.max(...inside.scores.map(Math.abs));
 
   return (
     <>
-      <PromptBox writer={writer} onShuffle={shuffle} value={prompt} onChange={setPrompt} tokens={tokens} tokenizer={tokenizer}
-        next={current && trace?.lens ? predictions(trace, L, tokenizer) : null} stale={!current} />
-
-      <div className="zoom-controls">
-        <HeadStepper id={id} onChange={onHead} L={L} H={H} />
-        <p className="muted small zoom-gist"><strong>Head {id}</strong> · {partGist(id)}</p>
-      </div>
-      <div className="zoom-field">
-        <span className="card-label">Looking from</span>
-        <TokenStrip tokens={shown} tokenizer={tokenizer} value={q} onChange={(t) => { setQuery(t); setPicked(null); }} label="Choose the token the head looks from" />
-      </div>
-
-      {inside && sources && (
-        <div className="zoom-steps">
+      <header className="deeper-head">
+        <h2>Inside head {id}</h2>
+        <p className="muted">Where a head looks is only half its story. Here is how it decides, what it carries and what it writes, at “{at}”, down to single numbers. Click a token above to follow another.</p>
+      </header>
+      <div className="part-steps">
           <Section n="1" title="Ask: a question and a label for each token">
             <p>At “{at}”, the head turns the running summary into a question: 64 numbers called its <Term tip="Made by multiplying the token's 768 numbers by this head's query weights. Every head has its own.">query</Term>. Every token up to here holds up a label, 64 numbers called its <Term tip="Made by multiplying each token's 768 numbers by this head's key weights.">key</Term>. A label matches when its numbers line up with the question's.</p>
             <div className="qk-grid">
@@ -117,13 +97,13 @@ export function ZoomHead({ engine, tokenizer, weights, id, onHead, prompt, setPr
 
           <Section n="3" title="Write: 64 numbers become 768">
             <p>The head's output weights turn the blend into 768 numbers, which are added to the running summary at “{at}”.</p>
-            <Numbers values={outVec!} label="What the head writes" height={22} />
-            {trace && <DirectEffect trace={trace} weights={weights} tokenizer={tokenizer} vector={out} position={q} />}
+            <Numbers values={outVec} label="What the head writes" height={22} />
+            <DirectEffect trace={trace} weights={weights} tokenizer={tokenizer} vector={out} position={q} />
           </Section>
 
-          <WiringCard id={id} />
+          <Copying engine={engine} tokenizer={tokenizer} weights={weights} head={id} />
+          <WiringMap sel={id} onSelect={onHead} />
         </div>
-      )}
     </>
   );
 }
@@ -151,33 +131,3 @@ function OneScore({ q, k, score, scores, share, from, to, sMax }: { q: Float32Ar
   );
 }
 
-// Which earlier heads this head's question, label and value can read from,
-// judged from the weights alone.
-function WiringCard({ id }: { id: string }) {
-  const [w, setW] = useState<Wiring | null>(null);
-  useEffect(() => {
-    loadWiring().then(setW).catch(() => {});
-  }, []);
-  if (!w || id.startsWith("0.")) return null;
-  const KINDS = [["Q", "question"], ["K", "labels"], ["V", "values"]] as const;
-  return (
-    <Section n="4" title="Wired to earlier heads">
-      <p>From the weights alone, these earlier heads write things this head is built to read. Researchers call this <Term tip={w.source}>composition</Term>. It's what the weights make possible, not what happens on your prompt.</p>
-      <div className="wire-cols">
-        {KINDS.map(([k, name]) => {
-          const kind = w.kinds[k];
-          const strong = strongestSources(w, k, id);
-          return (
-            <div key={k}>
-              <div className="card-label">Feeds its {name}</div>
-              {strong.length ? (
-                <ul className="wire-list">{strong.map(([src, s]) => <li key={src}><a href={href({ view: "zoom", part: "head", arg: src })}>{src}</a> <span className="muted small">{(s / kind.median).toFixed(1)}× typical</span></li>)}</ul>
-              ) : <p className="muted small">No standout.</p>}
-            </div>
-          );
-        })}
-      </div>
-      <a className="link-small" href={href({ view: "zoom", part: "weights" })}>See all the wiring →</a>
-    </Section>
-  );
-}

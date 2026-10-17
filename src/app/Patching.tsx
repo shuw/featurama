@@ -1,4 +1,4 @@
-// Exhibit 4: activation patching. Copy one token's running summary at one
+// Lab: activation patching. Copy one token's running summary at one
 // layer from sentence A into sentence B, and see whether B's answer follows.
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -31,7 +31,7 @@ interface Probe {
   flip: number; // 0 = B's answer unchanged, 1 = as sure of A's answer as A itself
 }
 
-export function Patching({ engine, tokenizer, guide }: { engine: GpuEngine; tokenizer: Tokenizer; guide: boolean }) {
+export function Patching({ engine, tokenizer }: { engine: GpuEngine; tokenizer: Tokenizer }) {
   const { n_layers: L, d_model: d } = engine.config;
   const [textA, setTextA] = useState(PAIR.a);
   const [textB, setTextB] = useState(PAIR.b);
@@ -150,7 +150,6 @@ export function Patching({ engine, tokenizer, guide }: { engine: GpuEngine; toke
   return (
     <article className="page">
       <header className="page-head">
-        <div className="eyebrow">Exhibit 4 · Patching</div>
         <h1>The Swap-o-matic</h1>
         <p className="dek">Two sentences, one word apart, two different answers. Copy one token's running summary from A into B and see whether B's answer follows. This is how researchers find where a model keeps the information it needs.</p>
       </header>
@@ -213,7 +212,7 @@ export function Patching({ engine, tokenizer, guide }: { engine: GpuEngine; toke
       </div>
 
       <Beats
-        guide={guide && (predicting
+        guide={(predicting
           ? "Guess first. Then the map fills in by itself, one layer at a time."
           : "Point at squares to see B's answer change. Click one to hold it. Try your own pair: change one word in each sentence.")}
         side={!predicting && (

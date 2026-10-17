@@ -1,6 +1,6 @@
-// Exhibit 3: the logit lens. Predict, poke, explain, challenge.
+// Layers, read as a guess: the logit lens. Predict, poke, explain, challenge.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { GpuEngine } from "../engine/gpu/engine.ts";
 import type { Tokenizer } from "../engine/tokenizer.ts";
 import { analyse, predictions, readingLabel, word, type Analysis } from "./analysis.ts";
@@ -37,14 +37,14 @@ const CHALLENGES = [
 interface Props {
   engine: GpuEngine;
   tokenizer: Tokenizer;
-  guide: boolean;
   prompt: string;
   setPrompt: (text: string) => void;
   shuffle: () => void;
   writer: Writer;
+  modes?: ReactNode;
 }
 
-export function Layers({ engine, tokenizer, guide, prompt, setPrompt, shuffle, writer }: Props) {
+export function Layers({ engine, tokenizer, prompt, setPrompt, shuffle, writer, modes }: Props) {
   const L = engine.config.n_layers;
   const [override, setOverride] = useState<string | null>(() => (done("layers.predict") || promptFromUrl() !== null ? null : PREDICT_PROMPT));
   const text = override ?? prompt;
@@ -90,10 +90,10 @@ export function Layers({ engine, tokenizer, guide, prompt, setPrompt, shuffle, w
   return (
     <article className="page">
       <header className="page-head">
-        <div className="eyebrow">Exhibit 3 · Layers</div>
         <h1>Watch the guess take shape</h1>
         <p className="dek">GPT-2 builds its answer one layer at a time. The <Term tip={GLOSSARY.lens}>logit lens</Term> lets you read its best guess part-way through.</p>
       </header>
+      {modes}
 
       <PromptBox autoFocus writer={writer} onShuffle={() => { setOverride(null); shuffle(); }} value={text} onChange={edit} tokens={tokens} tokenizer={tokenizer} next={result ? predictions(result.trace, L, tokenizer) : null}
         stale={!current} disabled={predicting} disabledNote="Make your guess below first" />
@@ -104,7 +104,7 @@ export function Layers({ engine, tokenizer, guide, prompt, setPrompt, shuffle, w
       {error && <p className="error">{error}</p>}
 
       <Beats
-        guide={guide && (predicting
+        guide={(predicting
           ? "Guess first, then run it. A wrong guess is useful: it tells you what to look at."
           : "Type your own prompt and watch the lens update. Click a token on the left to read the lens there, and point at a lens square for its top five guesses.")}
         side={!predicting && (
