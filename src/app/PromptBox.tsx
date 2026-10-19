@@ -53,7 +53,8 @@ export function PromptBox({ value, onChange, tokens, tokenizer, next, nextNote =
   const rest = (piece: string) => piece.slice(trailing.length);
   const top = fitting?.[0];
   const writing = !!writer?.writing;
-  const ghost = !disabled && !writing && !stale && caretAtEnd && top && !tokens.cut ? rest(top.piece) : null;
+  // Not over the placeholder: an empty box shows that instead.
+  const ghost = value && !disabled && !writing && !stale && caretAtEnd && top && !tokens.cut ? rest(top.piece) : null;
 
   const trackCaret = () => {
     const el = input.current;

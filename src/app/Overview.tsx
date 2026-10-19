@@ -437,7 +437,11 @@ function StepText({ step, trace, facts, guesses, tokenizer, writer, watch }: {
     </>,
     [TOKENS]: <>
       <p>GPT-2 doesn't read letters or sentences. It reads tokens: common words whole, rarer ones in pieces. “featurama” is fe · atur · ama.</p>
-      <p>Your prompt is {T - 1} token{T === 2 ? "" : "s"}, after a <Term tip={GLOSSARY.start}>start token</Term> GPT-2 always gets first. Each token gets its own lane and keeps it all the way down.</p>
+      {T === 1 ? (
+        <p>Your prompt is empty, so GPT-2 sees only the <Term tip={GLOSSARY.start}>start token</Term> it always gets first. Its guesses are tokens that often begin a text. Type something to give it more lanes.</p>
+      ) : (
+        <p>Your prompt is {T - 1} token{T === 2 ? "" : "s"}, after a <Term tip={GLOSSARY.start}>start token</Term> GPT-2 always gets first. Each token gets its own lane and keeps it all the way down.</p>
+      )}
       {why("GPT-2 can only ever answer with one of its 50,257 tokens, one at a time. And it never sees letters, which is one reason language models are bad at spelling games.")}
       <p className="ov-try"><strong>Try it:</strong> type a made-up word and watch it split in the box above.</p>
     </>,
