@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 export type LayersMode = "numbers" | "map";
 export type LabTool = "unplug" | "swap" | "steer" | "trace";
 export type Route =
-  | { view: "machine" } | { view: "head"; head?: string } | { view: "mlp"; arg?: string } | { view: "layers"; mode?: LayersMode } | { view: "features" } | { view: "weights" }
+  | { view: "overview" } | { view: "machine" } | { view: "head"; head?: string } | { view: "mlp"; arg?: string } | { view: "layers"; mode?: LayersMode } | { view: "features" } | { view: "weights" }
   | { view: "lab"; tool?: LabTool } | { view: "play"; level?: string };
 
 // The three sections in the header.
@@ -14,7 +14,7 @@ export const sectionOf = (r: Route): Section => (r.view === "lab" ? "lab" : r.vi
 // sets <base> to it, so pages like /featurama/head/9.9 still find their files.
 const base = () => new URL(document.baseURI).pathname;
 
-const VIEWS = ["", "head", "mlp", "layers", "features", "weights", "lab", "play", "index.html"];
+const VIEWS = ["", "machine", "head", "mlp", "layers", "features", "weights", "lab", "play", "index.html"];
 const HEAD = /^([0-9]|1[01])\.([0-9]|1[01])$/;
 // An MLP's layer, optionally with one of its 3,072 neurons: 7 or 7.1234.
 const MLP = /^([0-9]|1[01])(\.([0-9]{1,3}|[0-2][0-9]{3}|30[0-6][0-9]|307[01]))?$/;
@@ -26,8 +26,8 @@ function parse(path: string): Route {
   if (view === "layers") return { view, mode: arg === "numbers" || arg === "map" ? arg : undefined };
   if (view === "lab") return { view, tool: arg === "swap" || arg === "steer" || arg === "trace" ? arg : "unplug" };
   if (view === "play") return { view, level: arg && /^[a-z]+$/.test(arg) ? arg : undefined };
-  if (view === "features" || view === "weights") return { view };
-  return { view: "machine" };
+  if (view === "machine" || view === "features" || view === "weights") return { view };
+  return { view: "overview" };
 }
 
 // Addresses from before the site had three sections.
@@ -47,7 +47,7 @@ const current = () => parse(location.pathname.slice(base().length));
 
 // A link to a page, relative to the site's root.
 export function href(r: Route) {
-  if (r.view === "machine") return "./";
+  if (r.view === "overview") return "./";
   if (r.view === "head" && r.head) return `head/${r.head}`;
   if (r.view === "mlp" && r.arg) return `mlp/${r.arg}`;
   if (r.view === "layers" && r.mode) return `layers/${r.mode}`;

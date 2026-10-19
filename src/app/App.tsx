@@ -9,6 +9,7 @@ import { PlayHub, PuzzleLevel } from "./Puzzles.tsx";
 import { Loading } from "./Loading.tsx";
 import { Game } from "./Game.tsx";
 import { Machine } from "./Machine.tsx";
+import { Overview } from "./Overview.tsx";
 import { useModel, type ModelState } from "./model.ts";
 import { href, navigate, promptFromUrl, sectionOf, setPromptInUrl, shareUrl, useRoute, type Route, type Section } from "./route.ts";
 import { randomPhrase } from "./phrases.ts";
@@ -30,6 +31,7 @@ interface Place {
   on: (r: Route) => boolean;
 }
 const PLACES: Place[] = [
+  { section: "explore", label: "Overview", key: "O", to: { view: "overview" }, on: (r) => r.view === "overview" },
   { section: "explore", label: "Machine", key: "M", to: { view: "machine" }, on: (r) => r.view === "machine" },
   { section: "explore", label: "Heads", key: "H", to: { view: "head" }, on: (r) => r.view === "head" },
   { section: "explore", label: "MLPs", key: "P", to: { view: "mlp" }, on: (r) => r.view === "mlp" },
@@ -145,7 +147,7 @@ export function App() {
     <div className="app">
       <header className={showKeys ? "top show-keys" : "top"}>
         <div className="top-inner">
-          <a className="brand" href={href({ view: "machine" })} aria-label="Featurama home">
+          <a className="brand" href={href({ view: "overview" })} aria-label="Featurama home">
             <Wordmark height={44} label="featurama" />
           </a>
           {/* One row: the open section unfolds its pages to its right. */}
@@ -211,8 +213,10 @@ export function App() {
             route.level === "guess" ? <Game engine={model.engine} tokenizer={model.tokenizer} />
             : route.level ? <PuzzleLevel key={route.level} engine={model.engine} tokenizer={model.tokenizer} jobs={model.jobs} id={route.level} />
             : <PlayHub />
-          ) : (
+          ) : route.view === "machine" ? (
             <Machine engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} jobs={model.jobs} {...shared} />
+          ) : (
+            <Overview engine={model.engine} tokenizer={model.tokenizer} weights={model.weights} {...shared} />
           )
         ) : (
           <section className="hero">

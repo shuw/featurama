@@ -877,3 +877,97 @@ span.crumb { cursor: default; font-family: "IBM Plex Mono", monospace; }
 .callout-dot-out { fill: #ffe9a8; filter: drop-shadow(0 0 8px rgba(255, 210, 110, 0.9)); }
 .tower-film { position: fixed; inset: 0; z-index: 1000; height: 100vh; border-radius: 0; }
 .tower-film .tower-crumbs, .tower-film .tower-full, .tower-film .tower-rail, .tower-film .tower-hud, .tower-film .tower-player, .tower-film .tower-legend { display: none; }
+
+/* Overview */
+.ov-stepper { display: flex; align-items: center; gap: 6px; margin-top: 16px; padding: 12px 0 2px; overflow-x: auto; scrollbar-width: none; }
+.ov-stepper::-webkit-scrollbar { display: none; }
+.ov-step { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--bg); color: var(--ink); font: 500 14px "IBM Plex Sans", sans-serif; cursor: pointer; white-space: nowrap; }
+.ov-step:hover { border-color: var(--ink); }
+.ov-step-on, .ov-step-on:hover { border-color: var(--resid); background: rgba(var(--resid-rgb), 0.1); }
+.ov-step-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); font: 600 11px "IBM Plex Mono", monospace; color: var(--muted); }
+.ov-step-on .ov-step-n { background: var(--resid); color: #fff; }
+.ov-step-arrow { flex-shrink: 0; color: var(--faint); }
+.ov-step-sep { flex-shrink: 0; width: 1px; height: 22px; margin: 0 6px; background: var(--line); }
+.ov-step-group { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 5px; border: 1.5px dashed color-mix(in srgb, var(--faint) 60%, transparent); border-radius: 24px; }
+.ov-step-times { position: absolute; top: -9px; left: 16px; line-height: 16px; padding: 0 6px; background: var(--bg); font: 11px "IBM Plex Mono", monospace; color: var(--muted); }
+.ov-body { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; margin-top: 18px; align-items: start; }
+.ov-stage { transition: opacity 0.15s; min-width: 0; }
+.ov-path { width: 100%; }
+.ov-path svg { display: block; font-family: "IBM Plex Mono", monospace; user-select: none; }
+.ov-side { position: sticky; top: 84px; }
+.ov-card { display: flex; flex-direction: column; min-height: 460px; }
+.ov-text p { line-height: 1.5; }
+.ov-summary { margin: 10px 0 0; padding-left: 22px; line-height: 1.5; }
+.ov-summary li + li { margin-top: 8px; }
+.ov-summary li::marker { font: 600 13px "IBM Plex Mono", monospace; color: var(--muted); }
+.ov-watch { margin-top: 14px; }
+.ov-why { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border-left: 3px solid var(--resid); }
+.ov-why p { margin-top: 4px; }
+.ov-try { font-size: 15px; color: var(--muted); }
+.ov-try strong { color: var(--ink); font-weight: 600; }
+.ov-links { display: flex; flex-direction: column; gap: 4px; font-size: 15px; }
+.ov-links a { color: var(--resid); text-decoration: none; }
+.ov-links a:hover { text-decoration: underline; }
+.ov-next { display: flex; flex-direction: column; margin-top: 18px; }
+.ov-next .card-label { margin-bottom: 4px; }
+.ov-next a { padding: 8px 0; border-top: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 15px; }
+.ov-next a:hover strong { color: var(--resid); }
+.ov-c-attn { color: var(--attn); font-weight: 600; }
+.ov-c-mlp { color: var(--mlp); font-weight: 600; }
+.ov-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 18px; }
+.ov-text + .ov-nav { border-top: 0; }
+.ov-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 6px 92px; }
+.ov-legend button { display: inline-flex; align-items: center; gap: 8px; padding: 4px 0; border: 0; background: none; font: 13px "IBM Plex Sans", sans-serif; color: var(--muted); cursor: pointer; }
+.ov-legend button:hover { color: var(--ink); }
+.ov-key { display: inline-block; flex-shrink: 0; }
+.ov-key-lane { width: 3px; height: 14px; background: var(--resid); }
+.ov-key-attn { width: 18px; height: 8px; border-top: 2px solid var(--attn); border-radius: 50% 50% 0 0; }
+.ov-key-mlp { width: 12px; height: 9px; border-radius: 2px; background: var(--mlp); }
+.ov-part { transition: opacity 0.35s; }
+.ov-half { opacity: 0.45; }
+.ov-dim { opacity: 0.15; }
+.ov-half:hover, .ov-dim:hover { opacity: 0.7; }
+.ov-label { font-size: 11px; fill: var(--muted); }
+.ov-note { font-size: 11px; fill: var(--attn); font-weight: 600; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+.ov-note-mlp { fill: var(--mlp); }
+.ov-lane { stroke: var(--resid); stroke-width: 1.5; opacity: 0.45; }
+.ov-lane-last { opacity: 1; stroke-width: 2.5; }
+.ov-arrowhead { fill: var(--attn); }
+.ov-tok { stroke: none; }
+.ov-tok.tk0 { fill: rgba(var(--resid-rgb), 0.14); }
+.ov-tok.tk1 { fill: rgba(var(--attn-rgb), 0.16); }
+.ov-tok.tk2 { fill: rgba(var(--mlp-rgb), 0.18); }
+.ov-tok.tk3 { fill: var(--panel); }
+.ov-tok-text { font-size: 12px; fill: var(--ink); }
+.ov-emb-frame { fill: var(--bg); stroke: var(--line); }
+.ov-attn-bar { fill: rgba(var(--attn-rgb), 0.25); }
+.ov-arc { fill: none; stroke: var(--attn); stroke-linecap: round; stroke-dasharray: 1; opacity: 0.75; }
+.ov-arc-pick { opacity: 1; }
+.ov-mlp { fill: var(--mlp); }
+.ov-mlp-pick { stroke: var(--ink); stroke-width: 1.5; }
+.ov-lens { font-size: 11px; fill: var(--faint); }
+.ov-lens-settled { fill: var(--ink); }
+.ov-lens-final { fill: var(--resid); font-weight: 600; }
+.ov-out { fill: var(--panel); }
+.ov-guess { font-size: 13px; fill: var(--ink); }
+.ov-guess-top { font-weight: 600; fill: var(--resid); }
+.ov-guess-bar { fill: var(--resid); }
+.ov-flow { stroke-dasharray: 1; }
+/* Watch it run: parts appear in the order GPT-2 computes them. */
+.ov-film .ov-seq { animation: ov-in 0.4s ease-out backwards; animation-delay: var(--d); }
+.ov-film .ov-flow { animation: ov-flow 3.2s cubic-bezier(0.3, 0, 0.6, 1) backwards; animation-delay: var(--d); }
+.ov-film .ov-draw { animation: ov-draw 0.5s ease-out backwards; animation-delay: var(--d); }
+.ov-film .ov-grow { transform-box: fill-box; transform-origin: left; animation: ov-grow 0.5s ease-out backwards; animation-delay: var(--d); }
+@keyframes ov-in { from { opacity: 0; } }
+@keyframes ov-flow { from { stroke-dashoffset: 1; } }
+@keyframes ov-draw { 0% { stroke-dashoffset: 1; opacity: 0; } 15% { opacity: 1; } 100% { stroke-dashoffset: 0; } }
+@keyframes ov-grow { from { transform: scaleX(0); } }
+/* Narrow screens: the card docks at the bottom, so the diagram stays in view while stepping. */
+@media (max-width: 960px) {
+  .ov-body { grid-template-columns: minmax(0, 1fr); }
+  .ov-side { position: sticky; bottom: 0; z-index: 2; margin: 0 -16px; }
+  .ov-card { min-height: 0; max-height: 42vh; padding: 14px 16px 12px; border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.12); }
+  .ov-text { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .ov-nav { padding-top: 10px; }
+}
+@media (max-width: 560px) { .ov-legend { margin-left: 0; } }

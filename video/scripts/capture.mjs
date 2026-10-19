@@ -109,7 +109,7 @@ const smoothScroll = async (by) => {
 const SHOTS = {
   // A prompt typed into the Machine: tokens appear, then GPT-2's guess.
   async type() {
-    await open(`?${q("x")}`, ".table .head");
+    await open(`machine?${q("x")}`, ".table .head");
     const box = page.locator("textarea").first();
     await box.click();
     await page.keyboard.press("Meta+A");
@@ -123,7 +123,7 @@ const SHOTS = {
 
   // The Machine's grid, then the same grid shaded by votes.
   async grid() {
-    await open(`?${q(IOI)}`, ".table .head");
+    await open(`machine?${q(IOI)}`, ".table .head");
     await shot("grid");
     await clip("grid", async () => {
       const [x, y] = await center(".seg button:nth-child(2)");
@@ -283,7 +283,7 @@ const SHOTS = {
 };
 
 // Load the model once before filming.
-await open("", ".table .head");
+await open("machine", ".table .head");
 for (const [name, run] of Object.entries(SHOTS)) {
   if (only.length && !only.includes(name)) continue;
   await run();

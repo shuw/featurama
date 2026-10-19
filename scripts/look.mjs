@@ -20,6 +20,11 @@ const type = async (text) => {
 };
 
 await page.goto(base);
+await page.waitForSelector(".ov-card .ov-text", { timeout: 120000 });
+await page.waitForTimeout(600);
+await shot("0-overview");
+
+await page.goto(base + "machine");
 await page.waitForSelector(".table .head", { timeout: 120000 });
 await page.waitForTimeout(600);
 await shot("1-machine");

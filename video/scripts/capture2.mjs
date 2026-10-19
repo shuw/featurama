@@ -164,7 +164,7 @@ const SHOTS = {
 
   // The Machine shaded by votes: 9.9 votes for Mary.
   async votes() {
-    await open(`?${q(IOI)}`, ".table .head");
+    await open(`machine?${q(IOI)}`, ".table .head");
     await scrollTo(".machine-tools", 110);
     await clip("votes", async () => {
       const [x, y] = await center(".seg button:nth-child(2)");
@@ -204,7 +204,7 @@ const SHOTS = {
 
   // Tour: tokens, the lens, neurons, a feature, steering, the map, a puzzle.
   async tokens() {
-    await open(`?${q("Welcome to")}`, ".table .head");
+    await open(`machine?${q("Welcome to")}`, ".table .head");
     const box = page.locator("textarea").first();
     await box.click();
     await page.keyboard.press("End");
@@ -278,7 +278,7 @@ const SHOTS = {
 };
 
 // Load the model once before filming.
-await open("", ".table .head");
+await open("machine", ".table .head");
 for (const [name, run] of Object.entries(SHOTS)) {
   if (only.length && !only.includes(name)) continue;
   await run();
