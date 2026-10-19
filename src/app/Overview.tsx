@@ -434,6 +434,17 @@ function StepText({ step, trace, facts, guesses, tokenizer, writer, watch }: {
         <li>The last token's numbers are scored against every token GPT-2 knows. Its guess here: {answer}.</li>
       </ol>
       <button className="secondary ov-watch" onClick={watch}>▶ Watch it run again</button>
+      <div className="ov-deeper">
+        <span className="card-label">Or go straight to a part</span>
+        <div>
+          <a href={href({ view: "head" })}>Heads</a>
+          <a href={href({ view: "mlp" })}>MLPs</a>
+          <a href={href({ view: "layers" })}>Layers</a>
+          <a href={href({ view: "features" })}>Features</a>
+          <a href={href({ view: "weights" })}>Weights</a>
+          <a href={href({ view: "lab" })}>Lab</a>
+        </div>
+      </div>
     </>,
     [TOKENS]: <>
       <p>GPT-2 doesn't read letters or sentences. It reads tokens: common words whole, rarer ones in pieces. “featurama” is fe · atur · ama.</p>
@@ -474,7 +485,7 @@ function StepText({ step, trace, facts, guesses, tokenizer, writer, watch }: {
       <div className="card-buttons">
         <button className="secondary" onClick={unplug}>Try it: unplug {id ? `head ${id}` : `MLP ${facts.mlp}`}</button>
       </div>
-      {links(["Watch the guess take shape", href({ view: "layers" })])}
+      {links(["Watch the guess take shape", href({ view: "layers" })], ["Find the concepts hidden in these numbers", href({ view: "features" })])}
     </>,
     [GUESS]: <>
       <p>After layer 11, the last lane's 768 numbers are scored against all 50,257 tokens, and the scores become chances: {guesses.slice(0, 3).map((g) => `“${word(g.piece)}” ${pct(g.p)}`).join(", ")}.</p>

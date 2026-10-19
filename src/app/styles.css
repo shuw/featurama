@@ -901,6 +901,10 @@ span.crumb { cursor: default; font-family: "IBM Plex Mono", monospace; }
 .ov-summary li + li { margin-top: 8px; }
 .ov-summary li::marker { font: 600 13px "IBM Plex Mono", monospace; color: var(--muted); }
 .ov-watch { margin-top: 14px; }
+.ov-deeper { margin-top: 18px; }
+.ov-deeper div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ov-deeper a { padding: 4px 12px; border: 1.5px solid var(--line); border-radius: 15px; background: var(--bg); color: var(--ink); font-size: 14px; text-decoration: none; }
+.ov-deeper a:hover { border-color: var(--ink); }
 .ov-why { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border-left: 3px solid var(--resid); }
 .ov-why p { margin-top: 4px; }
 .ov-try { font-size: 15px; color: var(--muted); }
