@@ -18,11 +18,13 @@ interface Props {
 }
 
 export function Positions({ weights }: { weights: Weights }) {
-  const [pca, setPca] = useState<ReturnType<typeof positionPca> | null>(null);
+  const [pca, setPca] = useState<Awaited<ReturnType<typeof positionPca>>>(null);
   useEffect(() => {
-    // A second or so of arithmetic: let the page draw first.
-    const t = setTimeout(() => setPca(positionPca(weights)), 50);
-    return () => clearTimeout(t);
+    let alive = true;
+    positionPca(weights, () => alive).then((r) => alive && r && setPca(r));
+    return () => {
+      alive = false;
+    };
   }, [weights]);
   const W = 420;
   const Hh = 300;

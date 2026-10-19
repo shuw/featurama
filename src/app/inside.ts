@@ -291,7 +291,9 @@ export function neuronData(layer: number) {
 
 // The top three directions the 1,024 position embeddings vary along (PCA by
 // power iteration), and each position's place along them.
-export function positionPca(w: Weights, k = 3) {
+// Runs in slices, yielding to the page every few milliseconds, so the tab
+// stays responsive; `alive` stops it when the view goes away.
+export async function positionPca(w: Weights, alive: () => boolean, k = 3) {
   const d = w.config.d_model;
   const P = w.f32("wpe.weight");
   const n = P.length / d;
@@ -302,9 +304,15 @@ export function positionPca(w: Weights, k = 3) {
   let total = 0;
   for (let i = 0; i < X.length; i++) total += X[i] * X[i];
   const comps: Float64Array[] = [];
+  let slice = performance.now();
   for (let c = 0; c < k; c++) {
     let v = new Float64Array(d).map((_, i) => Math.sin(i * (c + 1) + 1));
     for (let it = 0; it < 100; it++) {
+      if (performance.now() - slice > 12) {
+        await new Promise((r) => setTimeout(r));
+        if (!alive()) return null;
+        slice = performance.now();
+      }
       const xv = new Float64Array(n);
       for (let p = 0; p < n; p++) xv[p] = dot(X.subarray(p * d, (p + 1) * d), v);
       const next = new Float64Array(d);
